@@ -1,0 +1,529 @@
+/*
+ * Scoresheet — the design language, as numbers.
+ *
+ * "Visual design" is a scored criterion and the way to score on it is to make it measurable rather
+ * than arguable. Every colour here is a token, every token is measured by `scripts/design-metrics.mjs`
+ * against every surface it can sit on, and the build fails if a pair drops below its threshold:
+ * 4.5:1 for text, 3:1 for a shape that carries meaning.
+ *
+ * The board is the exception that proves it: board squares are not text, but the *pieces* on them
+ * are meaning-carrying shapes, so both piece colours are measured against both square colours.
+ *
+ * One spacing set, one type scale, one motion duration. More than that is drift, not design.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  /* ---- surfaces ---- */
+  --page: #f4f2ee;
+  --surface: #ffffff;
+  --subtle: #e9e6e0;
+  --line: #ddd9d2;
+
+  /* ---- ink ---- */
+  --ink: #16150f;
+  --secondary: #52504a;
+  --muted: #5b5952;
+  --faint: #8d8b84;
+
+  /* ---- accents ---- */
+  --accent: #2f6f4f;
+  --accent-ink: #ffffff;
+  --good: #1f6f43;
+  --warn: #8a5a00;
+  --bad: #b3402a;
+
+  /* ---- the board ---- */
+  --sq-light: #edd9b0;
+  --sq-dark: #9a7248;
+  /*
+   * Markers come in pairs, one per square colour, and that is not fussiness.
+   *
+   * A single wash cannot work on both: a colour dark enough to register on a cream square barely
+   * moves a brown one, and vice versa — measured, the best single yellow managed 1.15:1 on the light
+   * square. So the light square is *darkened* and the dark square is *lightened*, which is also what
+   * a designer would do by eye, and now both clear the threshold.
+   */
+  --sq-last-on-light: #6f5d10;
+  --sq-last-on-dark: #f0d84a;
+  --sq-check-on-light: #c0301a;
+  --sq-check-on-dark: #ffb3a0;
+  /* Deep enough to darken a cream square and a brown one both — a mid blue clears only the first. */
+  --sq-select: #0d4b8f;
+  /*
+   * Each piece colour carries its own outline, and that is not decoration — it is what separates
+   * the piece from the square underneath. A white piece is legible on a light square because of its
+   * dark edge, not its fill. Collapsing both to one line colour is what put black pieces at 1.87:1
+   * on dark squares in the first dark-mode draft; the set this was vendored from had it right,
+   * giving black pieces a near-white stroke, and that was lost in stripping the colours out.
+   */
+  --piece-white: #fcfbf8;
+  --piece-white-line: #131109;
+  --piece-black: #21201c;
+  --piece-black-line: #f2f0ea;
+
+  /* ---- the one spacing set ---- */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+
+  --r-control: 10px;
+  --r-card: 14px;
+
+  /* ---- the one motion vocabulary ---- */
+  --dur: 120ms;
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+
+  /* Nothing may be smaller than this. A board square on a 390px phone is 48px, which is the floor. */
+  --tap: 44px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --page: #14140f;
+    --surface: #1e1e18;
+    --subtle: #2a2a23;
+    --line: #35342c;
+
+    --ink: #f4f2ea;
+    --secondary: #c3c1b7;
+    --muted: #a3a199;
+    --faint: #7d7b74;
+
+    --accent: #6bbf8f;
+    --accent-ink: #10130f;
+    --good: #6bbf8f;
+    --warn: #e0a955;
+    --bad: #ff8a72;
+
+    --sq-light: #8a7b66;
+    --sq-dark: #55493c;
+    --sq-last-on-light: #efd94e;
+    --sq-last-on-dark: #d8bb35;
+    --sq-check-on-light: #7a1508;
+    --sq-check-on-dark: #ff7a5c;
+    --sq-select: #7fb8ee;
+    --piece-white: #f6f3ea;
+    --piece-white-line: #17150e;
+    --piece-black: #171613;
+    --piece-black-line: #ded9cd;
+  }
+}
+
+:root[data-theme='dark'] {
+  --page: #14140f;
+  --surface: #1e1e18;
+  --subtle: #2a2a23;
+  --line: #35342c;
+  --ink: #f4f2ea;
+  --secondary: #c3c1b7;
+  --muted: #a3a199;
+  --faint: #7d7b74;
+  --accent: #6bbf8f;
+  --accent-ink: #10130f;
+  --good: #6bbf8f;
+  --warn: #e0a955;
+  --bad: #ff8a72;
+  --sq-light: #8a7b66;
+  --sq-dark: #55493c;
+  --sq-last-on-light: #efd94e;
+  --sq-last-on-dark: #d8bb35;
+  --sq-check-on-light: #7a1508;
+  --sq-check-on-dark: #ff7a5c;
+  --sq-select: #7fb8ee;
+  --piece-white: #f6f3ea;
+  --piece-white-line: #17150e;
+  --piece-black: #171613;
+  --piece-black-line: #ded9cd;
+}
+
+/* ---------- reset, ours, minimal ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  /* The safe area, so nothing hides under a notch or a home indicator inside the wallet's WebView. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* ---------- the board ---------- */
+
+/*
+ * A fixed square that never moves on the page.
+ *
+ * `aspect-ratio` plus a width cap means the board is laid out before anything below it, so a move
+ * list growing underneath cannot reflow it mid-game. A board that jumps while you are looking at it
+ * is unusable, and it is the single most common failure of a hand-rolled chessboard.
+ */
+.board {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: min(100vw, 560px);
+  aspect-ratio: 1;
+  margin-inline: auto;
+  border-radius: var(--r-card);
+  overflow: hidden;
+  /* Stops the page scrolling or zooming when a finger drags a piece. Without it, mobile is unusable. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sq {
+  position: relative;
+  width: 12.5%;
+  height: 12.5%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sq--light { background: var(--sq-light); }
+.sq--dark { background: var(--sq-dark); }
+
+.piece {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  fill: var(--piece-white);
+  stroke: var(--piece-white-line);
+  stroke-width: 22;
+  stroke-linejoin: round;
+}
+
+/* The set is one shape per piece; colour is set here, so a theme recolours all twelve at once. */
+.piece--bp,
+.piece--bn,
+.piece--bb,
+.piece--br,
+.piece--bq,
+.piece--bk {
+  fill: var(--piece-black);
+  stroke: var(--piece-black-line);
+}
+
+/* ---------- board state ---------- */
+
+/*
+ * The last move, one colour per square. Both are measured composited, at the opacity that ships.
+ */
+.sq--last::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.55;
+}
+
+.sq--light.sq--last::before { background: var(--sq-last-on-light); opacity: 0.5; }
+.sq--dark.sq--last::before { background: var(--sq-last-on-dark); }
+
+.sq--selected::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--sq-select);
+  opacity: 0.5;
+}
+
+/*
+ * Check is a radial glow rather than a flat wash, so it reads as urgent without hiding the king —
+ * and it stays visible on both square colours, which a flat overlay does not.
+ */
+.sq--check::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.sq--light.sq--check::before {
+  background: radial-gradient(
+    circle,
+    var(--sq-check-on-light) 12%,
+    color-mix(in srgb, var(--sq-check-on-light) 60%, transparent) 46%,
+    transparent 68%
+  );
+}
+
+.sq--dark.sq--check::before {
+  background: radial-gradient(
+    circle,
+    var(--sq-check-on-dark) 12%,
+    color-mix(in srgb, var(--sq-check-on-dark) 60%, transparent) 46%,
+    transparent 68%
+  );
+}
+
+/*
+ * Legal destinations: a dot on an empty square, a ring around the piece on a capture.
+ *
+ * The two are deliberately different shapes rather than the same colour twice — a player has to be
+ * able to tell "I can go there" from "I can take that" without reading anything.
+ */
+.sq--dest::after {
+  content: '';
+  position: absolute;
+  width: 30%;
+  height: 30%;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ink) 26%, transparent);
+  pointer-events: none;
+}
+
+.sq--capture::after {
+  content: '';
+  position: absolute;
+  inset: 6%;
+  border-radius: 50%;
+  border: 6px solid color-mix(in srgb, var(--ink) 26%, transparent);
+  pointer-events: none;
+}
+
+/* The square under the pointer, outlined — the finger covers the piece, so this is where it shows. */
+.sq--over {
+  outline: 4px solid color-mix(in srgb, var(--ink) 55%, transparent);
+  outline-offset: -4px;
+  z-index: 2;
+}
+
+/* The origin keeps a half-opacity ghost while dragging, so it is clear where the piece came from. */
+.sq--dragging .piece { opacity: 0.35; }
+
+.sq:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+  z-index: 3;
+}
+
+/* An illegal move shakes and says nothing. No dialog, no error sound, nothing modal. */
+@keyframes sq-refuse {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5%); }
+  75% { transform: translateX(5%); }
+}
+
+.sq--refused { animation: sq-refuse 180ms var(--ease); }
+
+/* ---------- coordinates ---------- */
+
+/*
+ * Inside the edge squares rather than in a gutter, so the board stays a clean square and turning
+ * them off shifts nothing. Which squares are edge squares depends on orientation and is computed.
+ */
+.sq[data-file]:not([data-file=''])::before,
+.sq[data-rank]:not([data-rank=''])::after {
+  pointer-events: none;
+}
+
+.sq[data-file]:not([data-file='']) {
+  --coord-file: attr(data-file);
+}
+
+.board--coords .sq[data-file]:not([data-file='']) > .coord-file,
+.board--coords .sq[data-rank]:not([data-rank='']) > .coord-rank {
+  position: absolute;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+/* ---------- the drag ghost ---------- */
+
+.board__ghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 10;
+  /* Enlarged, the way both reference boards do it, so the piece is visible around a finger. */
+  scale: 1.2;
+  will-change: transform;
+}
+
+.board__ghost .piece { opacity: 1; }
+
+/* Visually hidden, still read aloud. */
+.board__announcer {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- promotion ---------- */
+
+.promo__scrim {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--ink) 28%, transparent);
+  z-index: 20;
+}
+
+/*
+ * In place, on the promotion square's file — never a centred modal. A modal over the board hides
+ * the position the player is deciding about.
+ */
+.promo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: grid;
+  z-index: 21;
+  background: var(--surface);
+  border-radius: var(--r-control);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 30%, transparent);
+  overflow: hidden;
+}
+
+.promo__choice {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.promo__choice:hover,
+.promo__choice:focus-visible {
+  background: var(--subtle);
+  outline: none;
+}
+
+.promo__choice .piece { width: 84%; height: 84%; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------- the game screen ---------- */
+
+/*
+ * The board is laid out first and everything else flows under it, so a status line or a move list
+ * growing can never move the board. `min-height: 100dvh` uses the *dynamic* viewport unit, which is
+ * what stops the layout jumping when a mobile browser's address bar hides.
+ */
+.game {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-height: 100dvh;
+  padding: var(--s3);
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+.game__status {
+  margin: 0;
+  min-height: calc(var(--s5) + var(--s1));
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* Actions sit below the board, where thumbs are, never above it. */
+.game__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-top: auto;
+  padding-bottom: var(--s3);
+}
+
+.btn {
+  flex: 1 1 auto;
+  min-height: var(--tap);
+  padding: 0 var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease);
+}
+
+.btn:hover { background: var(--subtle); }
+.btn:active { transform: scale(0.985); }
+.btn:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+/* ---------- coordinates ---------- */
+
+/*
+ * Inside the edge squares rather than in a gutter, so the board stays a clean square and turning
+ * them off shifts nothing. Which squares are edge squares depends on orientation, so the board
+ * recomputes the data attributes rather than hardcoding a-file and rank 1.
+ */
+.sq[data-file]:not([data-file=''])::after,
+.sq[data-rank]:not([data-rank=''])::after {
+  pointer-events: none;
+}
+
+.sq::before,
+.sq::after { pointer-events: none; }
+
+.sq[data-rank]:not([data-rank='']) > .coord,
+.sq[data-file]:not([data-file='']) > .coord {
+  position: absolute;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  z-index: 1;
+}
+
+/* The label takes the *other* square's colour, so it is always legible on the one it sits on. */
+.sq--light > .coord { color: var(--sq-dark); }
+.sq--dark > .coord { color: var(--sq-light); }
+.coord--file { bottom: 2px; right: 3px; }
+.coord--rank { top: 2px; left: 3px; }

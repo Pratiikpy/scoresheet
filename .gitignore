@@ -11,3 +11,4 @@ coverage/
 shots/
 data/*.csv
 data/*.zst
+shots/
