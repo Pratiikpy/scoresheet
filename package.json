@@ -1,0 +1,15 @@
+{
+  "name": "scoresheet",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": ["packages/*", "apps/*"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run build -w @scoresheet/web"
+  },
+  "description": "A chess rating nobody can take away from you. Both players sign the result."
+}
