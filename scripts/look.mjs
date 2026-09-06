@@ -111,6 +111,25 @@ try {
     check('the bot replies by itself', moves === 2);
     await page.screenshot({ path: `${SHOTS}/03-after-move-${scheme}.png`, fullPage: true });
 
+    // The move list is the panel that fills the space under the board, and it is scrubbable —
+    // people do it mid-game, constantly, to check what just happened.
+    const rows = await page.locator('.moves__move').count();
+    check('the move list holds both moves', rows === 2, `${rows} moves`);
+
+    await page.locator('.moves__move').first().click();
+    await wait(200);
+    check('tapping a move shows that position', (await page.locator('.game--reviewing').count()) === 1);
+    check('and says so, rather than silently rewinding', /earlier position/i.test(await page.locator('.moves__note').innerText()));
+    const reviewing = await page.evaluate(() => document.querySelectorAll('.sq .piece').length);
+    check('the board really went back a move', reviewing === 32, `${reviewing} pieces`);
+    check('nothing can be picked up off a past position', (await page.locator('.sq[tabindex="0"]').count()) === 0);
+    await page.screenshot({ path: `${SHOTS}/04-reviewing-${scheme}.png`, fullPage: true });
+
+    await page.locator('[aria-label="Back to the live position"]').click();
+    await wait(200);
+    check('and one tap comes back to the live game', (await page.locator('.game--reviewing').count()) === 0);
+    check('after which pieces can be lifted again', (await page.locator('.sq[tabindex="0"]').count()) > 0);
+
     // Nothing may scroll sideways on a phone.
     const width = await page.evaluate(() => ({
       scroll: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),

@@ -527,3 +527,102 @@ button {
 .sq--dark > .coord { color: var(--sq-light); }
 .coord--file { bottom: 2px; right: 3px; }
 .coord--rank { top: 2px; left: 3px; }
+
+/* ---------- the move list ---------- */
+
+/*
+ * It fills the space between the board and the controls, which is what that space is for. The
+ * scroller has a minimum height so the layout does not change shape on the first move — a page that
+ * grows a panel the moment you play is a page that moves under your thumb.
+ */
+.moves {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-height: 0;
+}
+
+/*
+ * Sized to its contents, between a floor and a ceiling.
+ *
+ * Growing to fill left a mostly-empty panel taking a third of the screen after two moves; growing
+ * without a ceiling would push the controls off a phone in a long game. The floor keeps the layout
+ * from changing shape on the first move — a page that grows a panel under your thumb is a page that
+ * moves while you are using it.
+ */
+.moves__list {
+  min-height: 76px;
+  max-height: 30vh;
+  margin: 0;
+  padding: var(--s2);
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  font-variant-numeric: tabular-nums;
+}
+
+.moves__row {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr 1fr;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.moves__number {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
+  padding-right: var(--s2);
+}
+
+.moves__move {
+  min-height: 32px;
+  padding: 0 var(--s2);
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.moves__move:hover { background: var(--subtle); }
+.moves__move--current { background: var(--subtle); font-weight: 700; }
+.moves__move:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.moves__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.moves__control {
+  min-width: var(--tap);
+  min-height: var(--tap);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.moves__control:disabled { opacity: 0.4; cursor: default; }
+.moves__control:not(:disabled):hover { background: var(--subtle); }
+.moves__control:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Only ever shown when the player is not looking at the live position. */
+.moves__note {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/*
+ * Reviewing an earlier position dims the board very slightly, so it is obvious at a glance that
+ * what is on screen is not what is being played. Slight on purpose — a heavy overlay would make
+ * reviewing feel like leaving the game.
+ */
+.game--reviewing .board { filter: saturate(0.85) brightness(0.97); }
