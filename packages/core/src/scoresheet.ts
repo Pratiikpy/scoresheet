@@ -32,6 +32,7 @@
  */
 
 import { sha256 } from '@noble/hashes/sha2.js';
+import { toBase64Url } from './base64.ts';
 
 /** The version marker. Bumping it is a new format, never a silent change to this one. */
 export const SCORESHEET_VERSION = 'chess/1 scoresheet';
@@ -95,13 +96,6 @@ export class ScoresheetError extends Error {
 /* ------------------------------------------------------------------ helpers */
 
 const encoder = new TextEncoder();
-
-/** base64url, no padding — the same alphabet a URL can carry without escaping. */
-export function toBase64Url(bytes: Uint8Array): string {
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
 
 /**
  * The hash of a move list.

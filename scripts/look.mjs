@@ -144,6 +144,70 @@ try {
     await context.close();
   }
 
+  /*
+   * The whole point, walked end to end: play a game to a real finish, sign the result, and show the
+   * exact bytes that were signed. Uses the stand-in wallet, which announces itself as meaningless.
+   */
+  console.log('\nsigning a finished game');
+  {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
+    const page = await context.newPage();
+    page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(`[sign] ${m.text()}`); });
+    page.on('pageerror', (e) => consoleErrors.push(`[sign] pageerror: ${e.message}`));
+
+    await page.goto(`${BASE}/?demo=1`, { waitUntil: 'networkidle' });
+    await page.waitForSelector('.board', { timeout: 20_000 });
+
+    // A few real moves, then resign. Resigning is how most online games actually end, it is the
+    // fastest honest finish, and it exercises the one ending the position alone cannot express.
+    for (let move = 0; move < 3; move++) {
+      const from = page.locator('.sq[tabindex="0"]').first();
+      if ((await from.count()) === 0) break;
+      await from.click();
+      await wait(150);
+      const dest = page.locator('.sq--dest, .sq--capture').first();
+      if ((await dest.count()) === 0) break;
+      await dest.click();
+      await wait(1200);
+    }
+    check('a few moves are on the board', (await page.locator('.moves__move').count()) >= 2);
+
+    // Confirmed, because resigning by accident is the worst mis-tap in chess.
+    const resignButton = page.locator('[data-action="resign"]');
+    await resignButton.click();
+    check('resigning asks once before it happens', /tap again/i.test(await resignButton.innerText()));
+    await resignButton.click();
+
+    await page.waitForSelector('.ending', { state: 'visible', timeout: 40_000 });
+    const result = await page.locator('.game__status').innerText();
+    check('a game played out reaches a real result', /checkmate|draw|wins|stalemate/i.test(result), result);
+    check('and the end offers to sign it', (await page.locator('.ending .btn--primary').count()) === 1);
+    await page.screenshot({ path: `${SHOTS}/05-game-over.png`, fullPage: true });
+
+    await page.locator('.ending .btn--primary').click();
+    await page.waitForSelector('.ending__done', { timeout: 30_000 });
+    check('signing succeeds', true);
+    check(
+      'and says plainly that the stand-in proves nothing',
+      /meaningless/i.test(await page.locator('.ending__done').innerText()),
+    );
+
+    await page.locator('.ending__proof summary').click();
+    const canonical = await page.locator('.ending__canonical').innerText();
+    check('the exact signed bytes are shown', canonical.startsWith('chess/1 scoresheet'), canonical.split('\n')[0]);
+    check('with the chain inside them, since sign() has no domain separation', canonical.split('\n')[1] === 'test');
+    check('and a bot game is signed casual, never rated', canonical.trimEnd().endsWith('casual'));
+    await page.screenshot({ path: `${SHOTS}/06-signed.png`, fullPage: true });
+
+    const signWidth = await page.evaluate(() => ({
+      scroll: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      inner: window.innerWidth,
+    }));
+    check('the signed bytes do not widen the page', signWidth.scroll <= signWidth.inner + 1, `${signWidth.scroll} vs ${signWidth.inner}`);
+
+    await context.close();
+  }
+
   console.log('\nhygiene');
   check('no console errors', consoleErrors.length === 0, consoleErrors.slice(0, 3).join(' | '));
 } catch (error) {

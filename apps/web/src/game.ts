@@ -14,6 +14,9 @@ import { LEVELS, chooseMove, outcomeOf, type Level } from '@scoresheet/core';
 import { createBoard, type BoardHandle, type Square } from './board.ts';
 import { createMoveList } from './movelist.ts';
 import { haptic, isMuted, play, playMoveSound, setMuted } from './sound.ts';
+import { newGameId, signFinishedGame, type SignedGame } from './sign-game.ts';
+import { isDemo } from './demo-wallet.ts';
+import { tier } from './wallet.ts';
 
 export interface GameHandle {
   readonly el: HTMLElement;
@@ -29,8 +32,30 @@ const RESULT_TEXT: Record<string, string> = {
   repetition: 'The same position five times — a draw',
 };
 
+/**
+ * The bot's side of a scoresheet.
+ *
+ * A scoresheet names two wallets, and the bot does not have one. This is a fixed, obviously-fake
+ * address that can never be a real wallet, because its checksum is not computed — and every screen
+ * showing a bot game says the game is unrated.
+ *
+ * Which is the point: a bot game is signed so the whole path works with nobody else online, and it
+ * is never rated so nobody can manufacture a rating against an opponent they control.
+ *
+ * It reads `B0T` with a zero, and that is not a typo. Nimiq's base-32 alphabet is
+ * `0123456789ABCDEFGHJKLMNPQRSTUVXY` — no `I`, `O`, `U` or `W`, so that letters cannot be misread
+ * as digits. The first draft spelled it `BOT` and was also one character short at 33, and both
+ * defects sat in a single hand-counted string until the address was checked by running it rather
+ * than by looking at it.
+ */
+const BOT_ADDRESS = `NQB0T${'0'.repeat(31)}`;
+
 export function createGame(level: Level = LEVELS[1]!): GameHandle {
   const chess = new Chess();
+  const gameId = newGameId();
+  let signed: SignedGame | null = null;
+  /** Set when somebody resigned. The position cannot say so, and the scoresheet must. */
+  let resigned: 'w' | 'b' | null = null;
   let playAs: 'w' | 'b' = 'w';
   let thinking = false;
   /** Which ply is being looked at. `null` is the live position, and it is almost always null. */
@@ -83,17 +108,145 @@ export function createGame(level: Level = LEVELS[1]!): GameHandle {
   });
   sound.setAttribute('aria-pressed', String(!isMuted()));
 
+  /*
+   * Resign, behind a confirmation.
+   *
+   * Every chess app confirms this and the reason is obvious the first time somebody loses a won
+   * game to a mis-tap. The button carries its own confirm rather than opening a dialog, so the
+   * board is never covered by something asking a question about it.
+   */
+  const resign = button('Resign', () => {
+    if (resign.dataset['confirming'] !== 'yes') {
+      resign.dataset['confirming'] = 'yes';
+      resign.textContent = 'Tap again to resign';
+      resign.classList.add('btn--danger');
+      // It goes back on its own. A button left in a confirming state is a trap for the next tap.
+      window.setTimeout(() => {
+        if (resign.dataset['confirming'] !== 'yes') return;
+        delete resign.dataset['confirming'];
+        resign.textContent = 'Resign';
+        resign.classList.remove('btn--danger');
+      }, 4000);
+      return;
+    }
+    delete resign.dataset['confirming'];
+    resign.textContent = 'Resign';
+    resign.classList.remove('btn--danger');
+    doResign();
+  });
+  // A stable hook: the label changes when it asks for confirmation, so nothing may select on text.
+  resign.dataset['action'] = 'resign';
+
   bar.append(
     button('Flip board', () => {
       board.flip();
       haptic(6);
     }),
     sound,
+    resign,
     button('New game', () => restart()),
     button('Play the other colour', () => restart(playAs === 'w' ? 'b' : 'w')),
   );
 
-  el.append(board.el, status, moveList.el, bar);
+  function doResign(): void {
+    if (resigned || outcomeOf(chess).over) return;
+    resigned = playAs;
+    viewing = null;
+    board.setPlaying(null);
+    play('end');
+    say(playAs === 'w' ? 'You resigned — Black wins' : 'You resigned — White wins');
+    draw();
+    showEnding();
+  }
+
+  /*
+   * The end-of-game panel. Empty until there is a result, so it never occupies the screen during
+   * play, and it is the only place in the app that asks for a wallet.
+   */
+  const ending = document.createElement('div');
+  ending.className = 'ending';
+  ending.hidden = true;
+
+  el.append(board.el, status, ending, moveList.el, bar);
+
+  function showEnding(): void {
+    ending.replaceChildren();
+    ending.hidden = false;
+    resign.hidden = true;
+
+    if (signed) {
+      const done = document.createElement('p');
+      done.className = 'ending__done';
+      done.textContent = isDemo()
+        ? 'Signed with the stand-in wallet — structurally valid, cryptographically meaningless.'
+        : 'Signed. This result is yours, and anyone can check it without us.';
+      ending.append(done);
+
+      const proof = document.createElement('details');
+      proof.className = 'ending__proof';
+      const summary = document.createElement('summary');
+      summary.textContent = 'What was signed';
+      const pre = document.createElement('pre');
+      pre.className = 'ending__canonical';
+      // The exact bytes, shown. The claim is that a stranger can re-check this; hiding it would
+      // make that a promise rather than something anybody can act on.
+      pre.textContent = signed.canonical;
+      proof.append(summary, pre);
+      ending.append(proof);
+      return;
+    }
+
+    const line = document.createElement('p');
+    line.className = 'ending__line';
+    line.textContent =
+      tier() === 'none'
+        ? 'Signing happens in the Nimiq Pay app. Open this there and the result becomes yours.'
+        : 'Sign the result and it becomes yours — a record nobody can revoke, checkable without us.';
+    ending.append(line);
+
+    if (tier() !== 'none') {
+      const signButton = document.createElement('button');
+      signButton.type = 'button';
+      signButton.className = 'btn btn--primary';
+      // A verb about the game, not a noun about infrastructure. Nobody should need to be told why.
+      signButton.textContent = 'Sign the result so it counts';
+      signButton.addEventListener('click', () => void doSign(signButton));
+      ending.append(signButton);
+    }
+  }
+
+  async function doSign(trigger: HTMLButtonElement): Promise<void> {
+    const original = trigger.textContent;
+    trigger.disabled = true;
+    trigger.textContent = 'Waiting for your wallet…';
+
+    const outcome = await signFinishedGame({
+      chess,
+      gameId,
+      chain: 'test',
+      playedAs: playAs,
+      opponent: BOT_ADDRESS,
+      // Never. A rating against an opponent you control is not a rating.
+      rated: false,
+      resigned,
+    });
+
+    trigger.disabled = false;
+    trigger.textContent = original;
+
+    if (!outcome.ok) {
+      const note = document.createElement('p');
+      note.className = `ending__note ending__note--${outcome.tone}`;
+      note.setAttribute('role', 'status');
+      note.textContent = outcome.message;
+      ending.append(note);
+      return;
+    }
+
+    signed = outcome.signed;
+    play('end');
+    showEnding();
+  }
 
   function button(label: string, onClick: () => void): HTMLButtonElement {
     const element = document.createElement('button');
@@ -165,6 +318,7 @@ export function createGame(level: Level = LEVELS[1]!): GameHandle {
       play('end');
       const who = outcome.result === '1/2-1/2' ? '' : outcome.result === '1-0' ? ' — White wins' : ' — Black wins';
       say(`${RESULT_TEXT[outcome.termination ?? ''] ?? 'Game over'}${who}`);
+      showEnding();
       return;
     }
     say(`${san}${chess.isCheck() ? ' — check' : ''}`);
@@ -186,6 +340,14 @@ export function createGame(level: Level = LEVELS[1]!): GameHandle {
   function restart(colour: 'w' | 'b' = playAs): void {
     playAs = colour;
     viewing = null;
+    signed = null;
+    resigned = null;
+    ending.hidden = true;
+    ending.replaceChildren();
+    resign.hidden = false;
+    delete resign.dataset['confirming'];
+    resign.textContent = 'Resign';
+    resign.classList.remove('btn--danger');
     chess.reset();
     board.setOrientation(playAs);
     moveList.setMoves([]);

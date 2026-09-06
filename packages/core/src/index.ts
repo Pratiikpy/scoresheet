@@ -17,7 +17,6 @@ export {
   sameAddress,
   scoreFor,
   sideOf,
-  toBase64Url,
   type ChessChain,
   type GameResult,
   type Scoresheet,
@@ -67,3 +66,17 @@ export {
   type ChooseOptions,
   type Level,
 } from './engine.ts';
+
+export { fromBase64Url, toBase64Url } from './base64.ts';
+
+export {
+  ED25519_PUBLIC_KEY_BYTES,
+  ED25519_SIGNATURE_BYTES,
+  NIMIQ_SIGN_MESSAGE_PREFIX,
+  SignatureDeclinedError,
+  SignatureShapeError,
+  coerceSignatureBytes,
+  nimiqSignedMessageDigest,
+  normaliseSignature,
+  type NormalisedSignature,
+} from './signature.ts';

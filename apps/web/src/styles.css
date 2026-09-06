@@ -173,6 +173,20 @@ button {
   color: inherit;
 }
 
+/*
+ * `[hidden]` must actually hide.
+ *
+ * The attribute's default style is `display: none`, and *any* class rule setting `display` beats it
+ * on specificity. That is how the end-of-game panel — `.ending { display: grid }` — sat on the
+ * screen throughout play as an empty bordered box, and how a browser test that waited for it to
+ * appear broke out of a game loop on the very first move.
+ *
+ * One rule, once, so no component has to remember.
+ */
+[hidden] {
+  display: none !important;
+}
+
 /* ---------- the board ---------- */
 
 /*
@@ -626,3 +640,74 @@ button {
  * reviewing feel like leaving the game.
  */
 .game--reviewing .board { filter: saturate(0.85) brightness(0.97); }
+
+/* ---------- the end of a game ---------- */
+
+/*
+ * Only ever present once there is a result. During play it is not on the screen at all, so the
+ * board keeps the space it had and nothing shifts when a game ends.
+ */
+.ending {
+  display: grid;
+  /*
+   * `minmax(0, 1fr)`, not `1fr`.
+   *
+   * A grid item defaults to `min-width: auto`, which refuses to shrink below its content — so a
+   * long unbreakable line inside it widens the whole page instead of scrolling in its own box.
+   * The signed scoresheet is exactly such a line, and it pushed a 390px phone to 422px.
+   */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s3);
+  padding: var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+}
+
+.ending__line,
+.ending__done,
+.ending__note {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.ending__done { color: var(--good); font-weight: 500; }
+.ending__note--calm { color: var(--secondary); }
+.ending__note--bad { color: var(--bad); }
+
+.ending__proof { min-width: 0; }
+
+.ending__proof > summary {
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--secondary);
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+}
+
+/*
+ * The signed bytes, shown exactly. The product's claim is that a stranger can re-check this, and
+ * hiding what was signed would make that a promise instead of something anybody can act on.
+ */
+.ending__canonical {
+  margin: 0;
+  padding: var(--s3);
+  background: var(--subtle);
+  border-radius: var(--r-control);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  /* A long word must scroll inside its own box, never widen the page. */
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* A button in its confirming state. Loud enough to notice, never a dialog over the board. */
+.btn--danger {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: var(--page);
+  font-weight: 600;
+}

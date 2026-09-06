@@ -8,7 +8,11 @@
 
 import './styles.css';
 import { LEVELS } from '@scoresheet/core';
+import { installDemoWallet } from './demo-wallet.ts';
 import { createGame } from './game.ts';
+
+// Before anything renders, and only when asked for. A real wallet always wins.
+installDemoWallet();
 
 const app = document.querySelector<HTMLElement>('#app');
 if (!app) throw new Error('no #app');
