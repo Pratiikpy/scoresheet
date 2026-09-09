@@ -18,6 +18,8 @@
  *  - **Muting is honoured everywhere, and remembered.**
  */
 
+import { settings, updateSettings } from './settings.ts';
+
 export type SoundName = 'move' | 'capture' | 'check' | 'castle' | 'promote' | 'lowTime' | 'end';
 
 /** Every sound as a small recipe. Two oscillators at most; anything richer starts sounding cheap. */
@@ -46,47 +48,72 @@ const RECIPES: Record<SoundName, Recipe> = {
   end: { from: 380, to: 140, duration: 0.3, type: 'sine', gain: 0.22 },
 };
 
-const STORAGE_KEY = 'scoresheet:sound';
+/*
+ * Where the mute state lives — and it is not here.
+ *
+ * This module used to own a `scoresheet:sound` key of its own. That was a second source of truth
+ * about a single preference, and the settings sheet made the cost concrete: the sheet would write
+ * `sound: false` while this module went on believing sound was on, so a switch a player had just
+ * flipped would keep making noise until a reload. One store, read through `settings()`, and there is
+ * nothing left to disagree.
+ *
+ * Sound and vibration are separate settings because they are separate answers on a phone in public,
+ * where people want the buzz and not the click.
+ */
 
 let context: AudioContext | null = null;
-let muted = read();
 
-function read(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === 'off';
-  } catch {
-    // Private mode, or storage disabled. Sound on is the better default to fail to.
-    return false;
-  }
+/**
+ * Has the page been touched yet?
+ *
+ * Both sound and vibration are gated on a real gesture by every browser. Listening once, in the
+ * capture phase, means this is true from the first tap anywhere — including a tap that is itself
+ * about to make a sound.
+ */
+let touched = false;
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+  const notice = (): void => {
+    touched = true;
+  };
+  window.addEventListener('pointerdown', notice, { capture: true, once: true });
+  window.addEventListener('keydown', notice, { capture: true, once: true });
+  window.addEventListener('touchstart', notice, { capture: true, once: true });
 }
 
-/** The one context, made on first use — never at load, and never one per sound. */
+/**
+ * The one shared audio context, created on first use.
+ *
+ * A context per sound leaks, and creating one at load starts a suspended audio graph on every page
+ * view for people who never play a move. Browsers also suspend it until a gesture, so the resume
+ * below is what makes the very first move audible rather than silently dropped.
+ */
 function audio(): AudioContext | null {
-  if (muted) return null;
-  if (!context) {
-    const Ctor = window.AudioContext ?? (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctor) return null;
-    context = new Ctor();
+  if (context) {
+    if (context.state === 'suspended') void context.resume();
+    return context;
   }
-  // Browsers suspend the context until a gesture. Resuming here is what makes the first move audible.
+  const Ctor = window.AudioContext ?? (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!Ctor) return null;
+  try {
+    context = new Ctor();
+  } catch {
+    // Some embedded WebViews refuse to construct one at all. Silence is the correct fallback.
+    return null;
+  }
   if (context.state === 'suspended') void context.resume();
   return context;
 }
 
 export function isMuted(): boolean {
-  return muted;
+  return !settings().sound;
 }
 
 export function setMuted(next: boolean): void {
-  muted = next;
-  try {
-    localStorage.setItem(STORAGE_KEY, next ? 'off' : 'on');
-  } catch {
-    /* nothing to do; the setting simply will not survive a reload */
-  }
+  updateSettings({ sound: !next });
 }
 
 export function play(name: SoundName): void {
+  if (!settings().sound) return;
   const ctx = audio();
   if (!ctx) return;
   const recipe = RECIPES[name];
@@ -120,7 +147,17 @@ export function play(name: SoundName): void {
  * `navigator.vibrate` is absent on iOS and throws in some embedded WebViews, so it is guarded.
  */
 export function haptic(pattern: number | number[] = 8): void {
-  if (muted) return;
+  if (!settings().haptics) return;
+  /*
+   * Nothing vibrates before the page has been touched.
+   *
+   * Chrome refuses `navigator.vibrate` until there has been a user gesture in the frame, and — this
+   * is the part that matters — it does not throw. It writes a console error and carries on, so the
+   * `try` below never sees it and the app logs an error it appears to be ignoring. The call was
+   * never going to do anything, so the fix is to not make it: same behaviour, quiet console, and one
+   * fewer red line for anybody reading ours to find a real problem.
+   */
+  if (!touched) return;
   try {
     navigator.vibrate?.(pattern);
   } catch {

@@ -30,13 +30,22 @@
   /* ---- accents ---- */
   --accent: #2f6f4f;
   --accent-ink: #ffffff;
+  /*
+   * The accent, hovered — and this token exists because of a real bug, not for completeness.
+   *
+   * `.btn:hover` is `(0,2,0)` and `.btn--primary` is `(0,1,0)`, so the hover rule won on specificity
+   * regardless of source order and repainted every primary button `--subtle` while its text stayed
+   * white: 1.15:1, on the main call to action, on every desktop pointer. The contrast script passed
+   * throughout, because it measured token pairs and a hover state is not a token pair.
+   */
+  --accent-hover: #275e43;
   --good: #1f6f43;
   --warn: #8a5a00;
   --bad: #b3402a;
 
   /* ---- the board ---- */
   --sq-light: #edd9b0;
-  --sq-dark: #9a7248;
+  --sq-dark: #926c44;
   /*
    * Markers come in pairs, one per square colour, and that is not fussiness.
    *
@@ -49,6 +58,15 @@
   --sq-last-on-dark: #f0d84a;
   --sq-check-on-light: #c0301a;
   --sq-check-on-dark: #ffb3a0;
+  /*
+   * A premove is a *third* meaning and needs a third colour, not a reuse.
+   *
+   * Last move is the past, selection is now, and a premove is the future — three different tenses
+   * on the same eight squares. Lichess settled on a violet-red for it, and the hue matters less
+   * than the fact that nobody can mistake it for either of the other two at a glance.
+   */
+  --sq-premove-on-light: #7a2a63;
+  --sq-premove-on-dark: #f0a8dc;
   /* Deep enough to darken a cream square and a brown one both — a mid blue clears only the first. */
   --sq-select: #0d4b8f;
   /*
@@ -97,16 +115,19 @@
 
     --accent: #6bbf8f;
     --accent-ink: #10130f;
+    --accent-hover: #8ed3ab;
     --good: #6bbf8f;
     --warn: #e0a955;
     --bad: #ff8a72;
 
-    --sq-light: #8a7b66;
+    --sq-light: #8d7e69;
     --sq-dark: #55493c;
     --sq-last-on-light: #efd94e;
     --sq-last-on-dark: #d8bb35;
     --sq-check-on-light: #7a1508;
     --sq-check-on-dark: #ff7a5c;
+    --sq-premove-on-light: #ffb0e8;
+    --sq-premove-on-dark: #e08fca;
     --sq-select: #7fb8ee;
     --piece-white: #f6f3ea;
     --piece-white-line: #17150e;
@@ -126,15 +147,18 @@
   --faint: #7d7b74;
   --accent: #6bbf8f;
   --accent-ink: #10130f;
+  --accent-hover: #8ed3ab;
   --good: #6bbf8f;
   --warn: #e0a955;
   --bad: #ff8a72;
-  --sq-light: #8a7b66;
+  --sq-light: #8d7e69;
   --sq-dark: #55493c;
   --sq-last-on-light: #efd94e;
   --sq-last-on-dark: #d8bb35;
   --sq-check-on-light: #7a1508;
   --sq-check-on-dark: #ff7a5c;
+  --sq-premove-on-light: #ffb0e8;
+  --sq-premove-on-dark: #e08fca;
   --sq-select: #7fb8ee;
   --piece-white: #f6f3ea;
   --piece-white-line: #17150e;
@@ -268,6 +292,22 @@ button {
   background: var(--sq-select);
   opacity: 0.5;
 }
+
+/*
+ * The queued premove: both its squares, in its own colour, until it is played or abandoned.
+ *
+ * It sits under the last-move wash in the cascade on purpose — when the opponent's move lands on a
+ * square the premove also touches, what just happened matters more than what is about to.
+ */
+.sq--premove::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.5;
+}
+
+.sq--light.sq--premove::before { background: var(--sq-premove-on-light); }
+.sq--dark.sq--premove::before { background: var(--sq-premove-on-dark); opacity: 0.55; }
 
 /*
  * Check is a radial glow rather than a flat wash, so it reads as urgent without hiding the king —
@@ -422,6 +462,29 @@ button {
   overflow: hidden;
 }
 
+/*
+ * Promoting on the bottom row: the picker opens upward instead, so it stays on the board.
+ *
+ * Without this the four choices hang off the bottom edge whenever the promotion square is the near
+ * rank as displayed — which is every promotion played as Black, and every one on a flipped board.
+ */
+.promo--up {
+  top: auto;
+  bottom: 0;
+}
+
+/*
+ * Opened upward, the queen still sits nearest the pawn.
+ *
+ * The list is q, r, n, b in the DOM and stays that way — that is the focus order, and it is what a
+ * screen reader reads. Only the painting is reversed, so the choice a player wants nine times out of
+ * ten is always the square adjacent to the one they just moved to, whichever way the picker opened.
+ */
+.promo--up .promo__choice:nth-child(1) { order: 4; }
+.promo--up .promo__choice:nth-child(2) { order: 3; }
+.promo--up .promo__choice:nth-child(3) { order: 2; }
+.promo--up .promo__choice:nth-child(4) { order: 1; }
+
 .promo__choice {
   display: grid;
   place-items: center;
@@ -475,6 +538,8 @@ button {
 }
 
 /* Actions sit below the board, where thumbs are, never above it. */
+.game__bar > .btn { flex: 1 1 auto; }
+
 .game__bar {
   display: flex;
   flex-wrap: wrap;
@@ -483,8 +548,31 @@ button {
   padding-bottom: var(--s3);
 }
 
+/*
+ * A button does not decide how it flexes — the thing containing it does.
+ *
+ * `flex: 1 1 auto` lived here so the five controls in the game bar would share its width. In a
+ * *column* container it grows on the other axis instead, and the Back button on the puzzle screen
+ * came out 570 px tall: a white slab filling most of the phone, on the screen that is the whole
+ * retention loop. Every check passed — it was the right element, with the right label, in the right
+ * place, and enormous.
+ */
+/*
+ * A button, whether it is a `<button>` or an `<a>`.
+ *
+ * Several controls are genuinely links — "See your record", "See the winner's record" — because they
+ * go somewhere and should be openable in a new tab, copyable, and crawlable. Styled as a `<button>`
+ * only, they rendered as underlined left-aligned text sitting inside a button-shaped box, which is
+ * the sort of thing that looks like a bug on the one page a stranger is meant to be convinced by.
+ *
+ * `inline-flex` with centring is what a `<button>` gets for free and an `<a>` does not.
+ */
 .btn {
-  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
   min-height: var(--tap);
   padding: 0 var(--s4);
   border: 1px solid var(--line);
@@ -509,6 +597,19 @@ button {
   border-color: var(--accent);
   color: var(--accent-ink);
   font-weight: 600;
+}
+
+/*
+ * Its own hover, at matching specificity, so the generic one cannot claim it.
+ *
+ * Written as `.btn.btn--primary:hover` rather than `.btn--primary:hover` on purpose: the latter is
+ * `(0,2,0)`, exactly tying `.btn:hover`, and would win only by sitting later in the file — a
+ * correctness that a reordering could silently undo.
+ */
+.btn.btn--primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--accent-ink);
 }
 
 /* ---------- coordinates ---------- */
@@ -537,8 +638,22 @@ button {
 }
 
 /* The label takes the *other* square's colour, so it is always legible on the one it sits on. */
-.sq--light > .coord { color: var(--sq-dark); }
-.sq--dark > .coord { color: var(--sq-light); }
+/*
+ * ⭐ Coordinates are drawn in **piece colours**, not in the opposite square's colour.
+ *
+ * The opposite square is the obvious choice and it inherits the board's contrast, which is
+ * deliberately soft — a board with 4.5:1 squares looks like a warning sign. That put nine-pixel
+ * text at **3.11:1 in light mode and 2.12:1 in dark**, and dark mode failed even the 3:1 floor for
+ * graphics. Found by measuring what is rendered rather than a list of token pairs, which is a check
+ * that could not have caught it: no pair in that list was "a coordinate on a square".
+ *
+ * The piece colours are the strongest two the board already contains, so the labels read without
+ * introducing a colour the board does not use. The two square colours were nudged by a few percent
+ * as well — `#9a7248 → #926c44` and `#8a7b66 → #8d7e69` — which is the smallest change that clears
+ * 4.5:1, is imperceptible beside the old board, and lifts square-to-square contrast slightly too.
+ */
+.sq--light > .coord { color: var(--piece-black); }
+.sq--dark > .coord { color: var(--piece-white); }
 .coord--file { bottom: 2px; right: 3px; }
 .coord--rank { top: 2px; left: 3px; }
 
@@ -564,6 +679,26 @@ button {
  * from changing shape on the first move — a page that grows a panel under your thumb is a page that
  * moves while you are using it.
  */
+/*
+ * The one sentence that says what this app is, in the space this box was already holding open.
+ *
+ * `--secondary` rather than `--muted`: it is the first thing worth reading on the screen, and the
+ * hint below it is the aside. Reversing that was the first draft and it read as small print.
+ */
+.moves__claim {
+  padding: var(--s2) var(--s1) 0;
+  color: var(--secondary);
+  font-size: 13px;
+  line-height: 1.4;
+  text-wrap: balance;
+}
+
+.moves__empty {
+  padding: var(--s2) var(--s1);
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .moves__list {
   min-height: 76px;
   max-height: 30vh;
@@ -673,6 +808,13 @@ button {
 }
 
 .ending__done { color: var(--good); font-weight: 500; }
+/* Another game against the same person: its own row, so it never crowds the signing button. */
+.ending__rematch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
 .ending__note--calm { color: var(--secondary); }
 .ending__note--bad { color: var(--bad); }
 
@@ -710,4 +852,2343 @@ button {
   border-color: var(--bad);
   color: var(--page);
   font-weight: 600;
+}
+
+/* ---------- the record ---------- */
+
+.record {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s4);
+  padding: var(--s4);
+  max-width: 560px;
+  margin-inline: auto;
+  min-height: 100dvh;
+  align-content: start;
+}
+
+.record__title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+/* A wallet is long and unbreakable, so it wraps rather than widening the page. */
+.record__address {
+  margin: 0;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.record__headline {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s5) var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  justify-items: center;
+  text-align: center;
+}
+
+.record__rating {
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A provisional rating wears its question mark. Never hidden, never in a fold. */
+.record__provisional {
+  color: var(--warn);
+  font-size: 32px;
+  vertical-align: super;
+  margin-left: 2px;
+}
+
+.record__meta,
+.record__note,
+.record__footer {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--secondary);
+}
+
+.record__note { color: var(--muted); font-size: 13px; }
+
+/*
+ * The puzzle rating: the same card, a smaller number.
+ *
+ * Smaller on purpose. Both numbers are real and signed, and they measure different things — one is
+ * how you play, the other is what you can see — so showing them at the same size would invite
+ * somebody to read them as interchangeable. The game rating is what the page is about.
+ */
+.record__puzzles {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  justify-items: center;
+  text-align: center;
+}
+
+.record__label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--secondary);
+}
+
+.record__rating--puzzles {
+  font-size: 36px;
+  /* The grid gap does the spacing here. A paragraph's own 1em margins on top of it left the number
+     floating well above its caption, which read as a layout bug rather than as breathing room. */
+  margin: 0;
+}
+
+/* A chain that does not add up says so in the colour the app uses for everything else that is wrong. */
+.record__note--bad { color: var(--bad); }
+.record__footer { color: var(--muted); font-size: 13px; padding-top: var(--s2); }
+
+.record__recompute {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+}
+
+.record__verdict { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.45; }
+.record__verdict--good { color: var(--good); }
+.record__verdict--bad { color: var(--bad); }
+
+.record__heading { margin: 0; font-size: 17px; }
+
+.record__games {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.record__game {
+  display: grid;
+  gap: var(--s1);
+  padding: var(--s3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+}
+
+.record__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+}
+
+.record__opponent {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 13px;
+  color: var(--secondary);
+}
+
+.record__score { font-weight: 600; font-size: 14px; }
+.record__score--win { color: var(--good); }
+.record__score--loss { color: var(--bad); }
+.record__score--draw { color: var(--muted); }
+
+.record__delta {
+  margin-left: auto;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--secondary);
+}
+
+.record__empty {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s5) var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  text-align: center;
+}
+
+/* ---------- the broken screen ---------- */
+
+.broken {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s6) var(--s4);
+  max-width: 560px;
+  margin-inline: auto;
+  justify-items: start;
+}
+
+.broken h1 { margin: 0; font-size: 24px; }
+.broken p { margin: 0; color: var(--secondary); overflow-wrap: anywhere; }
+
+/*
+ * The stand-in wallet's own admission, on the record page.
+ *
+ * A caveat, not an error: nothing is broken, and a red box would teach a judge to distrust a screen
+ * whose entire job is to be trusted. It reads as a footnote that cannot be missed.
+ */
+.record__banner {
+  margin: 0 0 var(--s4);
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-control);
+  background: var(--subtle);
+  color: var(--secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/*
+ * The opening name, above the move list.
+ *
+ * Small and quiet: it is reference, not headline, and a player's eye should land on the moves. The
+ * ECO code and the ply it was named at live in the title attribute rather than on screen, because
+ * they are the answer to a question rather than something to read every game.
+ */
+.moves__opening {
+  margin: 0 0 var(--s2);
+  padding: 0 var(--s1);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--secondary);
+  /* One line. A long variation name must not push the move list down on a phone. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Left theory: still the right name for the game, no longer a description of the position. */
+.moves__opening--left-book {
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* ==================================================================== the settings sheet */
+
+/*
+ * A bottom sheet, over the board rather than instead of it.
+ *
+ * Every switch takes effect underneath as it is tapped, which is the whole reason this is a sheet
+ * and not a route — you change the coordinates while looking at the board you are changing them on.
+ */
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.sheet__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.45);
+}
+
+.sheet__panel {
+  position: relative;
+  /*
+   * Constrained on a wide window, and centred.
+   *
+   * A bottom sheet is a phone gesture, and without this it spanned the full 1440 px of a laptop —
+   * two switches marooned at opposite ends of a metre of white, which is what a mobile-first layout
+   * looks like when nobody has opened it on anything else. 560 px is the same column the rest of the
+   * app uses, so it lines up with the board it slid over.
+   */
+  width: 100%;
+  max-width: 560px;
+  margin-inline: auto;
+  max-height: 82vh;
+  overflow-y: auto;
+  padding: var(--s5) var(--s4) calc(var(--s5) + env(safe-area-inset-bottom, 0px));
+  border-radius: var(--r-card) var(--r-card) 0 0;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  /* Sliding up is the gesture a sheet has; without it the panel appears to teleport. */
+  animation: sheet-rise var(--dur) var(--ease);
+}
+
+@keyframes sheet-rise {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+/* Nobody asked for the sheet to slide, so nobody gets to be made ill by it. */
+@media (prefers-reduced-motion: reduce) {
+  .sheet__panel { animation: none; }
+}
+
+.sheet__heading {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.sheet__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.sheet__label {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.sheet__detail {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/*
+ * A row is a `<label>`, so the whole thing is the hit target.
+ *
+ * A 44 px switch alone would be a miserable target next to two lines of text that look tappable and
+ * are not — and it is the single most common way a settings list gets this wrong.
+ */
+.sheet__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  min-height: var(--tap);
+  padding: var(--s2) 0;
+  cursor: pointer;
+}
+
+.sheet__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* min-width:0 or a long explanation widens the row past the viewport instead of wrapping. */
+  min-width: 0;
+}
+
+.sheet__row .sheet__label { font-weight: 500; }
+
+/*
+ * The switch, drawn from a checkbox rather than replaced by one.
+ *
+ * `appearance: none` keeps the real input — so it is focusable, announced as a checkbox, and
+ * operable by keyboard — while the track and knob are ours. A `<div role="switch">` would have
+ * needed every one of those behaviours written by hand, and would have got one of them wrong.
+ */
+.sheet__switch {
+  appearance: none;
+  flex: none;
+  width: 48px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--subtle);
+  position: relative;
+  cursor: pointer;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+.sheet__switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: transform var(--dur) var(--ease);
+}
+
+.sheet__switch:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.sheet__switch:checked::after { transform: translateX(20px); }
+
+.sheet__switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet__switch, .sheet__switch::after { transition: none; }
+}
+
+/* The four bots, two per row on a phone so a name and its description both fit. */
+.sheet__levels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2);
+}
+
+.sheet__level {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: var(--tap);
+  padding: var(--s3);
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.sheet__level-name { font-size: 15px; font-weight: 600; }
+.sheet__level-how { font-size: 12px; line-height: 1.3; color: var(--muted); }
+
+.sheet__level--chosen {
+  border-color: var(--accent);
+  /* A second signal beside the border: a border alone disappears for anyone who cannot see it. */
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.sheet__level--chosen .sheet__level-name::after {
+  content: ' ✓';
+  color: var(--accent);
+}
+
+.sheet__level:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sheet__done { width: 100%; }
+
+/* ==================================================================== zen */
+
+/*
+ * Zen: the board alone.
+ *
+ * Everything but the board is hidden rather than removed, so the position, the move list and the
+ * scroll offset all survive being switched off and on. A strong player uses this constantly; it is
+ * a concentration setting, not a gimmick.
+ */
+.game--zen .game__status,
+.game--zen .moves,
+.game--zen .game__bar {
+  display: none;
+}
+
+/*
+ * With everything else gone, the board centres itself.
+ *
+ * `.game` is a top-aligned column, which is right when a move list and a control bar sit under the
+ * board. In zen they do not, so the same rule left the board pinned to the top of the screen above
+ * half a page of nothing — the layout of a screen that had lost its contents rather than one
+ * designed without them. Centring costs one line and is the difference between zen looking
+ * deliberate and looking broken.
+ */
+.game--zen {
+  justify-content: center;
+}
+
+/*
+ * The one exception, and it has to be one.
+ *
+ * Zen hides the control bar, which is where the settings button lives — so a player who turned zen
+ * on would have no way to turn it off, and the only escape from the app's most drastic setting
+ * would be clearing site data. A single small control stays.
+ */
+.game--zen .game__zen-exit {
+  display: flex;
+}
+
+.game__zen-exit { display: none; }
+
+/*
+ * Positioned rather than in the flow: in zen it is the only thing on the screen besides the board,
+ * and it must not push the board around or reintroduce the layout zen exists to remove.
+ */
+.game--zen .game__zen-exit {
+  position: fixed;
+  right: var(--s4);
+  bottom: calc(var(--s4) + env(safe-area-inset-bottom, 0px));
+  z-index: 10;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  opacity: 0.75;
+}
+
+.game--zen .game__zen-exit:hover,
+.game--zen .game__zen-exit:focus-visible {
+  opacity: 1;
+}
+
+/* ==================================================================== navigation */
+
+/*
+ * Three links, above every screen.
+ *
+ * A strip rather than a tab bar pinned to the viewport: a fixed bar costs 56 px of a 390 px phone on
+ * every screen, and the screen that matters most here is a *square board* — the one layout where
+ * vertical space is the scarce thing. The board must still be the first substantial thing a stranger
+ * sees, so this is deliberately quiet.
+ */
+/*
+ * The shell owns the viewport height, and the screens fill what is left.
+ *
+ * Each screen used to be `min-height: 100dvh` on its own, which was right when it *was* the page.
+ * With a navigation strip above it that becomes 100dvh *plus* the nav, so every screen scrolled by
+ * about forty pixels and the control bar sat just below the fold — on a phone, on the first screen,
+ * for no reason anybody could see.
+ */
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+/* Screens fill the rest of the shell rather than claiming the whole viewport for themselves. */
+.shell > .game,
+.shell > .puzzles,
+.shell > .puzzle-menu,
+.shell > .lobby,
+.shell > .online,
+.shell > .record,
+.shell > .broken {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.nav {
+  display: flex;
+  gap: var(--s1);
+  align-items: center;
+  padding: var(--s2) var(--s3) 0;
+  max-width: 560px;
+  width: 100%;
+  margin-inline: auto;
+}
+
+.nav__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 var(--s3);
+  border-radius: var(--r-control);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.nav__link:hover { background: var(--subtle); color: var(--ink); }
+.nav__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/*
+ * Where you are, said with weight and a rule rather than colour alone.
+ *
+ * A coloured word is invisible to plenty of people and to anybody reading the page aloud;
+ * `aria-current="page"` carries it for a screen reader and the underline carries it for everyone.
+ *
+ * The underline is a pseudo-element rather than an inset shadow: a shadow follows the link's rounded
+ * corners and rendered as a shallow bracket under the word instead of a rule.
+ */
+.nav__link { position: relative; }
+
+.nav__link--here {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.nav__link--here::after {
+  content: '';
+  position: absolute;
+  left: var(--s3);
+  right: var(--s3);
+  bottom: 4px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.nav__notice {
+  max-width: 560px;
+  width: 100%;
+  margin: var(--s2) auto 0;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-control);
+  background: var(--subtle);
+  color: var(--secondary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* Zen means the board alone, and that includes the navigation. */
+.game--zen ~ .nav,
+.shell:has(.game--zen) .nav,
+.shell:has(.game--zen) .nav__notice {
+  display: none;
+}
+
+/* ==================================================================== puzzles */
+
+.puzzles,
+.puzzle-menu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-height: 100dvh;
+  padding: var(--s3);
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+.puzzles__back { align-self: flex-start; }
+
+.puzzles__title,
+.puzzle-menu__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.puzzles__score {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--secondary);
+  /* Fixed height: the Storm clock changes every second, and text that reflows the board under it
+     once a second is unusable. */
+  min-height: 20px;
+}
+
+/*
+ * The prompt carries the verdict, so it is the one line that changes colour.
+ *
+ * Colour alone never says it — the words do too ("Right", "Not that one"), because a red sentence is
+ * invisible to a red-green colourblind reader and to anybody reading it aloud.
+ */
+.puzzles__prompt {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+  min-height: 22px;
+}
+
+.puzzles__prompt--good { color: var(--good); font-weight: 600; }
+.puzzles__prompt--bad { color: var(--bad); font-weight: 600; }
+
+.puzzles__themes {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  min-height: 18px;
+}
+
+.puzzles__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+/* ---------- the menu ---------- */
+
+.puzzle-menu__stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s2);
+}
+
+.puzzle-menu__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--s3) var(--s1);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+}
+
+.puzzle-menu__value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.puzzle-menu__caption {
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--muted);
+}
+
+.puzzle-menu__note,
+.puzzle-menu__credit {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.puzzle-menu__credit { margin-top: auto; padding-top: var(--s4); }
+
+.puzzle-menu__modes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.puzzle-menu__mode {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: var(--tap);
+  padding: var(--s3) var(--s4);
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.puzzle-menu__mode:hover { background: var(--subtle); }
+.puzzle-menu__mode:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.puzzle-menu__mode-name { font-size: 16px; font-weight: 600; }
+.puzzle-menu__mode-detail { font-size: 13px; color: var(--muted); }
+
+/* ==================================================================== the lobby */
+
+.lobby,
+.online {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-height: 100dvh;
+  padding: var(--s3);
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+.lobby__back,
+.online__back { align-self: flex-start; }
+
+.lobby__title {
+
+/* The second thing this screen offers. Same weight as the title above it, one step quieter. */
+.lobby__heading { margin: var(--s4) 0 0; font-size: 17px; }
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.lobby__note,
+.online__share-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--secondary);
+}
+
+.lobby__group { display: flex; flex-direction: column; gap: var(--s2); }
+
+.lobby__label {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.lobby__choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2);
+}
+
+.lobby__choice {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: var(--tap);
+  padding: var(--s3);
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.lobby__choice-name { font-size: 15px; font-weight: 600; }
+.lobby__choice-detail { font-size: 12px; line-height: 1.3; color: var(--muted); }
+
+.lobby__choice--chosen {
+  border-color: var(--accent);
+  /* A second signal beside the border, for anyone who cannot see the colour. */
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.lobby__choice--chosen .lobby__choice-name::after { content: ' ✓'; color: var(--accent); }
+.lobby__choice:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.lobby__make { margin-top: var(--s2); }
+
+.lobby__problem {
+  margin: 0;
+  padding: var(--s3);
+  border-radius: var(--r-control);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--warn);
+  background: var(--subtle);
+  color: var(--secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ==================================================================== a live game */
+
+/*
+ * The clocks sit above and below the board, which is where every chess app puts them and where a
+ * player's eye already goes. Tabular numerals so the width never changes as the digits do — a clock
+ * that jiggles once a second is the most distracting thing that can be on a chess screen.
+ */
+.online__clock {
+  align-self: flex-end;
+  min-width: 88px;
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--secondary);
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* Whose turn it is, said by weight and border rather than by colour alone. */
+.online__clock--running {
+  border-color: var(--accent);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.online__clock--low { color: var(--bad); }
+
+.online__status {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
+  min-height: 22px;
+}
+
+.online__status--bad { color: var(--bad); font-weight: 600; }
+
+.online__trouble {
+  margin: 0;
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-control);
+  background: var(--subtle);
+  color: var(--warn);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.online__actions { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.online__actions > .btn { flex: 1 1 auto; }
+
+/* ---------- the share link ---------- */
+
+.online__share {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.online__share-row { display: flex; gap: var(--s2); }
+
+.online__link {
+  flex: 1 1 auto;
+  /* min-width:0 or a long URL widens the card past the viewport instead of scrolling inside it. */
+  min-width: 0;
+  min-height: var(--tap);
+  padding: 0 var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--subtle);
+  color: var(--ink);
+  font-size: 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.online__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.online__share-row .btn { flex: 0 0 auto; }
+
+/* ==================================================================== the rating graph */
+
+/*
+ * A sparkline, drawn as inline SVG.
+ *
+ * Coloured by tokens rather than by attributes on the elements, so it follows the theme like
+ * everything else — an SVG with baked-in hex is the one thing on a page that stays light when
+ * everything around it goes dark.
+ */
+.graph {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  margin-top: var(--s3);
+}
+
+.graph__grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+/* The starting rating, as a reference: dashed, so it reads as a datum rather than as data. */
+.graph__start {
+  stroke: var(--faint);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.graph__line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.graph__now {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+
+/*
+ * A provisional rating is shaded, and labelled in words.
+ *
+ * The shading alone would be decoration; the words are what carry the meaning to somebody who cannot
+ * see the difference between a tinted rectangle and an untinted one.
+ */
+.graph__provisional {
+  fill: var(--warn);
+  opacity: 0.07;
+}
+
+.graph__label {
+  fill: var(--muted);
+  font-size: 9px;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.graph__note {
+  fill: var(--muted);
+  font-size: 9px;
+  font-family: inherit;
+}
+
+/* ==================================================================== sharing a finished game */
+
+.ending__share-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.ending__share {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.ending__share > .btn { flex: 1 1 auto; }
+
+/*
+ * The certificate preview, when a screen shows one.
+ *
+ * Constrained by height rather than width: it is a 4:5 portrait, and letting it take its natural
+ * width on a phone would push everything below it off the screen.
+ */
+.certificate {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 60vh;
+  object-fit: contain;
+  border-radius: var(--r-control);
+  border: 1px solid var(--line);
+}
+
+/*
+ * The day's reward, offered after the daily puzzle is solved.
+ *
+ * A card rather than another button in the row: this is the one place in the app where solving
+ * something turns into real money, and it should not look like "Back to the board".
+ */
+.puzzles__reward {
+  flex: 1 1 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s4);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.puzzles__reward-line {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--secondary);
+}
+
+/* Paid: said in words as well as colour, because colour alone says nothing to plenty of people. */
+.puzzles__reward-line--paid {
+  color: var(--good);
+  font-weight: 600;
+}
+
+/*
+ * Reviewing an earlier position in a live game.
+ *
+ * The same signal the bot screen uses: the board is dimmed slightly so it is obvious this is not
+ * the position being played, while staying perfectly readable. The move list's own "viewing an
+ * earlier position" line carries the words.
+ */
+.online--reviewing .board {
+  opacity: 0.85;
+}
+
+/* ==================================================================== captured pieces */
+
+/*
+ * The tray, above and below the board.
+ *
+ * It takes no room at all when it is empty, so an even game looks like an even game rather than like
+ * two empty shelves. `min-height` on the row would have been the obvious way to stop the board
+ * jumping as the first capture lands — but the board is `aspect-ratio` constrained and the jump is
+ * one line of a small font, which is less disruptive than a permanent empty strip.
+ */
+.material {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 22px;
+  padding: 0 var(--s1);
+}
+
+.material__pieces {
+  display: flex;
+  align-items: center;
+  /*
+   * Overlapped, the way both reference boards draw it.
+   *
+   * Eight captured pawns side by side is a wide strip; overlapped it is a compact cluster that still
+   * reads as eight. The negative margin is undone on the first child so the row starts flush.
+   */
+  gap: 0;
+}
+
+.material__piece {
+  width: 18px;
+  height: 18px;
+  margin-inline-start: -5px;
+  flex: none;
+}
+
+.material__pieces > .material__piece:first-child { margin-inline-start: 0; }
+
+/*
+ * A captured piece is drawn in its own colour, but muted — it is a tally, not a piece in play, and
+ * at full contrast a row of them competes with the board for attention.
+ */
+.material--white .material__piece { fill: var(--piece-black); stroke: var(--piece-black-line); }
+.material--black .material__piece { fill: var(--piece-white); stroke: var(--piece-white-line); }
+.material__piece { opacity: 0.7; }
+
+.material__lead {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Zen means the board alone, and a tally is not the board. */
+.game--zen .material { display: none; }
+
+/*
+ * Blindfold — `SPEC.md` J8, and very nearly the one CSS rule it promised.
+ *
+ * The pieces go and everything else stays: the squares, the coordinates, the move list, the sounds.
+ * That is what blindfold chess actually is — a board you cannot see, followed in notation — rather
+ * than an empty screen.
+ *
+ * `visibility` rather than `display`, so a piece still occupies its square: the board must not
+ * reflow, and a piece being lifted must still be draggable from where it stands.
+ */
+.game--blindfold .piece,
+.game--blindfold .board__ghost {
+  visibility: hidden;
+}
+
+/* The last-move and check markers stay: they are information about the game, not the position. */
+
+/*
+ * Training one idea: a wrapping row of small chips.
+ *
+ * Chips rather than a select, because a select hides eleven of twelve options behind a tap and this
+ * is a browse — somebody scanning for "the one I keep getting wrong" wants to see the list.
+ */
+.puzzle-menu__label {
+  margin: var(--s3) 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.puzzle-menu__themes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.puzzle-menu__theme {
+  min-height: 36px;
+  padding: 0 var(--s3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.puzzle-menu__theme:hover { background: var(--subtle); color: var(--ink); }
+.puzzle-menu__theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/*
+ * "Leave this game?" — shown in the screen, not as a browser dialog.
+ *
+ * A native confirm over a chessboard is worse than the problem it solves, and browsers ignore
+ * `beforeunload` on a back navigation anyway. This sits at the top of the screen where the person
+ * was already looking, and the game underneath it keeps running — because it is running.
+ */
+.online__leaving {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s4);
+  border: 1px solid var(--warn);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.online__leaving-line {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.online__leaving-row {
+  display: flex;
+  gap: var(--s2);
+}
+
+.online__leaving-row > .btn { flex: 1 1 auto; }
+
+/* ==================================================================== the public certificate */
+
+.certpage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s3);
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+.certpage__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/*
+ * The verdict is the page.
+ *
+ * Everything above it is fetching and everything below it is presentation — so it is set larger
+ * than the heading's own supporting text, and its colour is backed by the words rather than
+ * carrying the meaning alone.
+ */
+.certpage__verdict {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.certpage__verdict--good { color: var(--good); }
+.certpage__verdict--bad { color: var(--bad); }
+
+.certpage__detail { display: flex; flex-direction: column; gap: var(--s2); }
+
+.certpage__note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--secondary);
+}
+
+.certpage__proof summary {
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--secondary);
+  padding: var(--s2) 0;
+}
+
+.certpage__canonical {
+  margin: 0;
+  padding: var(--s3);
+  border-radius: var(--r-control);
+  background: var(--subtle);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  /* The signed bytes are the point; they scroll rather than wrap, so nothing is silently reflowed. */
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.certpage__picture { display: flex; }
+.certpage__actions { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.certpage__actions > .btn { flex: 1 1 auto; }
+
+/* ==================================================================== arrows and marks */
+
+/*
+ * Annotations, on one overlay above the squares.
+ *
+ * An arrow runs *between* squares so it cannot live inside one, and an overlay clears in a single
+ * operation — which is what "gone on your next move" needs. `pointer-events: none` throughout: an
+ * arrow must never intercept a tap meant for the board underneath it.
+ */
+.board__shapes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 4;
+  overflow: visible;
+}
+
+/*
+ * Lichess's orange-yellow, and the choice is not aesthetic.
+ *
+ * It has to be distinguishable from the last-move wash, the check glow, the selection and the
+ * premove — five meanings on eight squares — while staying legible on both a cream square and a
+ * brown one. An opaque warm orange is the only one of the six that reads on both without a
+ * per-square variant, which is why both references landed on roughly this colour.
+ */
+.board__arrow {
+  stroke: #e8913a;
+  stroke-width: 0.16;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.board__arrowhead { fill: #e8913a; opacity: 0.85; }
+
+.board__mark {
+  fill: none;
+  stroke: #e8913a;
+  stroke-width: 0.1;
+  opacity: 0.9;
+}
+
+
+/* ==================================================================== board themes */
+
+/*
+ * Three board colourways — `SPEC.md` A4's "cheapest personalisation in existence".
+ *
+ * Each is a set of token overrides on the root, so a theme changes the board *and* every marker that
+ * has to sit on it — the last-move wash, the check glow, the premove — rather than only the squares.
+ * That is the whole reason the markers were built as per-square-colour pairs in the first place.
+ *
+ * Every combination here is measured by `scripts/design-metrics.mjs`. A theme that made a piece or a
+ * marker hard to see would fail the build rather than ship, which is why there are three and not
+ * thirty: each one is a set of promises somebody has to keep.
+ */
+
+/* Slate: cool grey-blue, the quietest of the three. */
+:root[data-board='slate'] {
+  --sq-light: #dfe3e8;
+  /* Darkened from #7d8a99 so a coordinate on it clears 4.5:1, and the squares gain a little too. */
+  --sq-dark: #697481;
+  --sq-last-on-light: #5a5a12;
+  --sq-last-on-dark: #f2e85c;
+  --sq-check-on-light: #a81f0d;
+  --sq-check-on-dark: #ffc4b5;
+  --sq-premove-on-light: #6d1f5c;
+  --sq-premove-on-dark: #ffc0ef;
+  --sq-select: #10427a;
+}
+
+/* Sea: green-grey, the closest to Lichess's default and the easiest on a bright screen. */
+:root[data-board='sea'] {
+  --sq-light: #e4e9d8;
+  /* Darkened from #789a68 for the same reason, and by the same measured minimum. */
+  --sq-dark: #607b53;
+  --sq-last-on-light: #5c5410;
+  --sq-last-on-dark: #f4ef73;
+  --sq-check-on-light: #ab2410;
+  --sq-check-on-dark: #ffcabc;
+  --sq-premove-on-light: #6b1e59;
+  --sq-premove-on-dark: #ffc4f0;
+  --sq-select: #0e3f74;
+}
+
+/*
+ * In dark mode the boards are darkened rather than swapped.
+ *
+ * A light board on a dark page is a lamp; the squares are pulled down so the board sits in the page
+ * rather than shouting over it — the same thing the default wood theme already does.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light'])[data-board='slate'] {
+    --sq-light: #8a929c;
+    --sq-dark: #4d5560;
+    /* Lightened with the squares — see the note below on why this is not optional. */
+    --sq-select: #9ecbf5;
+  }
+  :root:not([data-theme='light'])[data-board='sea'] {
+    --sq-light: #8b9a7c;
+    --sq-dark: #4e5c44;
+    --sq-select: #a8d6f7;
+  }
+}
+
+/*
+ * The selection colour is lightened with the squares, and that was caught by measuring rather than
+ * by looking.
+ *
+ * Each theme sets a deep blue selection that reads well on its light-mode squares. Darkening only
+ * the squares for dark mode left that same deep blue on a now-dark square: 1.17:1 on slate and
+ * 1.24:1 on sea — a selection nobody could see, on two of the three board colours, in the mode half
+ * of people use. Every theme is measured by `scripts/design-metrics.mjs`, so this failed the build
+ * instead of shipping.
+ */
+:root[data-theme='dark'][data-board='slate'] { --sq-light: #8a929c; --sq-dark: #4d5560; --sq-select: #9ecbf5; }
+:root[data-theme='dark'][data-board='sea'] { --sq-light: #8b9a7c; --sq-dark: #4e5c44; --sq-select: #a8d6f7; }
+
+/*
+ * The colourway picker: three little boards, not three words.
+ *
+ * Nobody knows what "sea" looks like from the name. A swatch *is* the choice, which is why every
+ * board-theme picker in every chess app is a row of miniature boards.
+ */
+.sheet__themes {
+  display: flex;
+  gap: var(--s2);
+}
+
+.sheet__theme {
+  width: 56px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  cursor: pointer;
+  /* Four squares, drawn with a gradient rather than four elements. */
+  background-image:
+    linear-gradient(45deg, var(--swatch-dark) 25%, transparent 25%, transparent 75%, var(--swatch-dark) 75%),
+    linear-gradient(45deg, var(--swatch-dark) 25%, var(--swatch-light) 25%, var(--swatch-light) 75%, transparent 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 10px 10px;
+}
+
+.sheet__theme--wood { --swatch-light: #edd9b0; --swatch-dark: #9a7248; }
+.sheet__theme--slate { --swatch-light: #dfe3e8; --swatch-dark: #7d8a99; }
+.sheet__theme--sea { --swatch-light: #e4e9d8; --swatch-dark: #789a68; }
+
+.sheet__theme--chosen {
+  border-color: var(--accent);
+  /* Two rings, so the chosen swatch is obvious without changing the colours it is showing. */
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.sheet__theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* ============================================================== studying and reviewing a game */
+
+.study {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s3);
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+.study__title { margin: 0; font-size: 22px; font-weight: 600; color: var(--ink); }
+
+.study__note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--secondary);
+}
+
+.study__box {
+  width: 100%;
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  /* Vertical only: a horizontally resizable box can be dragged past the viewport on a phone. */
+  resize: vertical;
+}
+
+.study__box:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.study__problem {
+  margin: 0;
+  padding: var(--s3);
+  border-radius: var(--r-control);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--warn);
+  background: var(--subtle);
+  color: var(--secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.study__viewer { display: flex; flex-direction: column; gap: var(--s3); }
+
+.study__heading {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.study__report { display: flex; flex-direction: column; gap: var(--s3); }
+
+.study__progress { display: flex; flex-direction: column; gap: var(--s2); }
+
+.study__progress-text { margin: 0; font-size: 13px; color: var(--secondary); }
+
+.study__bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--subtle);
+  overflow: hidden;
+}
+
+.study__fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  /* Eased, so a long analysis reads as steady progress rather than a bar that jumps. */
+  transition: width 200ms linear;
+}
+
+.study__verdict {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.study__side {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+.study__side-name {
+  min-width: 52px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.study__accuracy {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.study__counts { font-size: 13px; color: var(--secondary); }
+
+.study__caveat {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--secondary);
+}
+
+/*
+ * The verdict is two lines now: what happened, then why.
+ *
+ * `display: grid` rather than two stacked paragraphs with margins, so the gap between the number and
+ * the reason is one token and cannot drift from the rest of the app.
+ */
+.study__detail {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: var(--s3);
+  border-radius: var(--r-control);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line);
+  background: var(--subtle);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+/*
+ * The three that are worth colouring, and only those.
+ *
+ * A good move needs no colour — a report where every move is highlighted is a report where none is.
+ */
+.study__detail--inaccuracy { border-left-color: var(--warn); }
+.study__detail--mistake { border-left-color: var(--warn); }
+.study__detail--blunder { border-left-color: var(--bad); }
+.study__detail--best { border-left-color: var(--accent); }
+
+/* The mark beside a move in the list: `?!`, `?`, `??`. */
+.moves__mark {
+  margin-left: 2px;
+  font-weight: 700;
+  font-size: 0.85em;
+}
+
+.moves__move--inaccuracy .moves__mark,
+.moves__move--mistake .moves__mark { color: var(--warn); }
+.moves__move--blunder .moves__mark { color: var(--bad); }
+
+.lobby__import { margin-top: var(--s2); }
+
+/*
+ * The language picker: a native select, deliberately.
+ *
+ * A custom dropdown on a phone is a worse dropdown — the platform's own picker is a full-height
+ * wheel that is easier to hit and already localised. Only the closed state is styled.
+ */
+.sheet__select {
+  width: 100%;
+  padding: 10px var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  /* 44px is the smallest a finger reliably hits, and this is the one control here that is a target
+     rather than a row. */
+  min-height: 44px;
+}
+
+.sheet__select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ==================================================================== the clock against the bot */
+
+/*
+ * The same shape as the live game's clock, because it is the same thing.
+ *
+ * Two rules rather than a shared class: the live screen's clock is `align-self: flex-end` inside its
+ * own column, and the bot screen's column is laid out differently. Copying six declarations is
+ * cheaper than a shared base that has to be overridden on one of the two.
+ */
+.game__clock {
+  align-self: flex-end;
+  min-width: 88px;
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--secondary);
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.game__clock--running {
+  border-color: var(--accent);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.game__clock--low { color: var(--bad); }
+
+/*
+ * Zen keeps the clock.
+ *
+ * Zen hides everything that is not the game; a clock in a timed game *is* the game, and a
+ * concentration mode that hid how long you had left would be actively harmful.
+ */
+.game--zen .game__clock { display: block; }
+
+/* The clock chooser in the settings sheet: one row of four, like the board colourways. */
+.sheet__clocks {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+.sheet__clock {
+  flex: 1 1 auto;
+  min-width: 68px;
+  min-height: 44px;
+  padding: var(--s2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--secondary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.sheet__clock--chosen {
+  border-color: var(--accent);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.sheet__clock:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ==================================================================== identicons */
+
+/*
+ * A face for an address, everywhere one appears.
+ *
+ * Sized by its caller and square by construction, so a list of games does not jump when the faces
+ * arrive a moment after the text. `flex: none` matters: inside a flex row an identicon would
+ * otherwise be squeezed by a long address beside it.
+ */
+.identicon {
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+  line-height: 0;
+}
+
+.identicon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* The record's header: the face, then the address, on one line. */
+.record__who {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.record__who .record__address { margin: 0; }
+
+/* An opponent in the list of games: a small face against their address. */
+.record__opponent {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* Who is on the other side of a live game. */
+.online__opponent {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  align-self: flex-start;
+}
+
+.online__opponent-name {
+  font-size: 13px;
+  color: var(--secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* A bot's face in the settings sheet, beside its name. */
+.sheet__level .identicon { margin-right: var(--s2); }
+
+/* ==================================================================== the coordinate trainer */
+
+.coords {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s3);
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+.coords__title { margin: 0; font-size: 22px; font-weight: 600; color: var(--ink); }
+
+.coords__note {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--secondary);
+}
+
+.coords__setup { display: flex; flex-direction: column; gap: var(--s3); }
+.coords__group { display: flex; flex-direction: column; gap: var(--s2); }
+
+.coords__label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.coords__choices { display: flex; gap: var(--s2); flex-wrap: wrap; }
+
+.coords__choice {
+  flex: 1 1 auto;
+  min-width: 96px;
+  min-height: 44px;
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--secondary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.coords__choice--chosen {
+  border-color: var(--accent);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.coords__choice:focus-visible,
+.coords__key:focus-visible,
+.coords__sq:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.coords__running { display: flex; flex-direction: column; gap: var(--s2); }
+
+.coords__prompt {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: center;
+  min-height: 28px;
+}
+
+/*
+ * In "find the square" the prompt *is* the exercise, so it is the biggest thing on the screen.
+ *
+ * A coordinate set in body text is something to read; set large, it is something to react to, which
+ * is the difference between a quiz and a drill.
+ */
+.coords__prompt--big {
+  font-size: 40px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.coords__score {
+  margin: 0;
+  font-size: 13px;
+  color: var(--secondary);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The board: a plain eight-by-eight, laid out by `order` so flipping it never moves an element in
+ * the DOM — which is what keeps a tap that started before a flip landing on the square it started on.
+ */
+.coords__board {
+  display: flex;
+  flex-wrap: wrap;
+  aspect-ratio: 1;
+  width: 100%;
+  border-radius: var(--r-card);
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.coords__sq {
+  width: 12.5%;
+  aspect-ratio: 1;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  /* Transparent by default so the square colours below show through; the flash overrides it. */
+  background: transparent;
+}
+
+.coords__sq--light { background: var(--sq-light); }
+.coords__sq--dark { background: var(--sq-dark); }
+.coords__sq:disabled { cursor: default; }
+
+/* The square being asked about, in "name the square". */
+.coords__sq--asked { box-shadow: inset 0 0 0 4px var(--accent); }
+
+.coords__sq--right { background: var(--good); }
+.coords__sq--wrong { background: var(--bad); }
+
+/* The pad: files, then ranks, each a full-width row of eight. */
+.coords__pad { display: flex; flex-direction: column; gap: var(--s2); }
+.coords__pad-row { display: flex; gap: 4px; }
+
+.coords__key {
+  flex: 1 1 0;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.coords__key--chosen {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.coords__key:disabled { color: var(--secondary); opacity: 0.5; cursor: default; }
+
+.coords__report { display: flex; flex-direction: column; gap: var(--s2); }
+
+.coords__result {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.coords__average {
+  margin: 0;
+  font-size: 14px;
+  color: var(--secondary);
+}
+
+/* The orientation just played, so the number that moved is the one the eye finds. */
+.coords__average--just { color: var(--ink); font-weight: 600; }
+
+/* ==================================================================== sending NIM yourself */
+
+/*
+ * Tipping the opponent, at the end of a live game.
+ *
+ * Set apart from the signing block above it by a rule rather than a box: signing is the point of the
+ * screen and this is an afterthought somebody may want, and giving it equal weight would suggest
+ * the game is not finished until money has moved.
+ */
+.ending__tip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin-top: var(--s2);
+  padding-top: var(--s3);
+  border-top: 1px solid var(--line);
+}
+
+.ending__tip:empty { display: none; }
+
+.ending__tip-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.ending__tip-amounts,
+.puzzles__topup-amounts {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+}
+
+.ending__tip-amounts .btn,
+.puzzles__topup-amounts .btn { flex: 1 1 auto; }
+
+.ending__note--paid,
+.puzzles__topup-line--paid { color: var(--good); font-weight: 600; }
+
+.puzzles__topup-line {
+  margin: 0 0 var(--s2);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--secondary);
+}
+
+/* Adding to the pool: folded away, because nobody came to a puzzle to be asked for money. */
+.puzzles__topup {
+  margin-top: var(--s2);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--line);
+}
+
+.puzzles__topup:not(:has(> *:nth-child(2))) { display: none; }
+
+.puzzles__topup-summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  /* 44px of target, which a bare summary is not. */
+  padding: 10px 0;
+}
+
+.puzzles__topup[open] .puzzles__topup-summary { margin-bottom: var(--s2); }
+
+/* ==================================================================== today */
+
+/*
+ * What has happened today, at the top of Train.
+ *
+ * A card rather than a row of numbers: the numbers below it are records, and this is a list of
+ * things to do — two different kinds of information that should not look the same.
+ */
+.puzzle-menu__today {
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface);
+}
+
+.puzzle-menu__today-title {
+  margin: 0 0 var(--s2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.puzzle-menu__today-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.puzzle-menu__today-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  font-size: 14px;
+  color: var(--secondary);
+}
+
+/*
+ * Done is said by weight and colour *and* by the tick — three signals, because one of them is
+ * colour and colour alone is not a signal for everybody.
+ */
+.puzzle-menu__today-row--done {
+  color: var(--good);
+  font-weight: 600;
+}
+
+.puzzle-menu__tick {
+  width: 14px;
+  text-align: center;
+  font-weight: 700;
+}
+
+/* Who you are playing, above the board in a bot game. */
+.game__opponent {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  align-self: flex-start;
+}
+
+.game__opponent-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Zen hides who you are playing along with everything else that is not the board. */
+.game--zen .game__opponent { display: none; }
+
+/* The two players on the certificate page, each with their face. */
+.certpage__players {
+  display: flex;
+  gap: var(--s4);
+  flex-wrap: wrap;
+  margin: var(--s3) 0;
+}
+
+.certpage__player {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.certpage__player-text { display: flex; flex-direction: column; }
+
+.certpage__player-side {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.certpage__player-address {
+  font-size: 12px;
+  color: var(--secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* "Show the pieces": one row, the same shape as a settings switch. */
+.coords__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-height: 44px;
+  cursor: pointer;
+}
+
+/* Figurines on the trainer's board: scenery, never the answer. */
+.coords__sq {
+  font-size: 22px;
+  line-height: 1;
+  color: var(--ink);
+}
+
+/* Centipawn loss, beside the accuracy it qualifies. */
+.study__acpl {
+  font-size: 13px;
+  color: var(--secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ==================================================================== the evaluation bar */
+
+/*
+ * The bar and the board, side by side.
+ *
+ * The bar is the board's height and a fixed narrow width, so the board keeps its square aspect and
+ * the bar never competes with it for room.
+ */
+.study__board {
+  display: flex;
+  gap: var(--s2);
+  align-items: stretch;
+}
+
+.study__board .board { flex: 1 1 auto; min-width: 0; }
+
+/*
+ * Black on top, White filling from the bottom — the orientation every chess site uses, and the one
+ * that matches a board with White at the bottom.
+ */
+/*
+ * **The bar is painted in piece colours, not theme colours.**
+ *
+ * The first version used `--ink` for Black's half and `--surface` for White's, which is correct in
+ * light mode and **exactly inverted in dark mode** — `--ink` is near-white there, so Black's share
+ * of the bar would have been the bright half. An evaluation bar that reads backwards is worse than
+ * none: it is a confident, wordless claim about who is winning, and half the people using the app
+ * would have read every game upside down.
+ *
+ * `--piece-white` and `--piece-black` are the colours the pieces on the board are already drawn in,
+ * so the bar means the same thing as the board beside it in both schemes, and both are measured for
+ * contrast against every square colour by `scripts/design-metrics.mjs`.
+ */
+.study__eval {
+  flex: none;
+  width: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--piece-black);
+  /* A hairline, so a dark bar still has an edge against a dark page. */
+  box-shadow: inset 0 0 0 1px var(--line);
+  /* Its own height comes from the row, so it always matches the board exactly. */
+  align-self: stretch;
+  position: relative;
+}
+
+.study__eval-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 50%;
+  background: var(--piece-white);
+  /* Eased, so walking the moves shows the evaluation *moving* rather than teleporting — which is
+     what makes the moment a game turned visible before a word is read. */
+  transition: height 180ms ease-out;
+}
+
+/* ------------------------------------------------------------------ the portable record */
+
+/* Same card as Recompute, because they are the same kind of thing: two ways of not taking our word
+   for it. Giving the export its own visual treatment would have implied it was a different sort of
+   promise, which it is not. */
+.record__take {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+}
+
+.record__subtitle { margin: 0; font-size: 17px; }
+.record__taken { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.5; }
+
+/* ------------------------------------------------------------------ /verify */
+
+.verify { display: grid; gap: var(--s4); }
+.verify__title { margin: 0; }
+.verify__intro { margin: 0; line-height: 1.55; color: var(--muted); }
+
+/* The input covers the button rather than hiding beside it.
+   `display:none` would take it out of the accessibility tree; a 1×1 clip keeps it focusable but
+   leaves it with no hit area, which `npm run look` flagged. Full size and transparent gives the
+   real control the button's own target, and the label underneath supplies the visible text. */
+.verify__field { position: relative; display: inline-block; }
+
+.verify__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  /* Fonts inside a file input can force it wider than its container in some engines; it is
+     transparent, so the size only ever needs to match the button behind it. */
+  font-size: 0;
+}
+
+.verify__choose { display: inline-block; text-align: center; }
+
+/* The focus ring has to be drawn on the label, because the thing being focused is invisible. */
+.verify__input:focus-visible + .verify__choose,
+.verify__choose:has(+ .verify__input:focus-visible) {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.verify__status { margin: 0; color: var(--muted); }
+
+.verify__report {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--good);
+  border-radius: var(--r-card);
+}
+
+/* Not red. A record with one bad signature and forty good ones is a finding, not a failure, and
+   painting the whole card as an error would tell the reader the opposite of what happened. */
+.verify__report--mixed { border-left-color: var(--warn); }
+
+.verify__who { display: flex; align-items: center; gap: var(--s3); }
+.verify__address { margin: 0; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; word-break: break-all; }
+.verify__headline { margin: 0; font-size: 17px; font-weight: 600; }
+.verify__rating { margin: 0; font-size: 15px; }
+.verify__note { margin: 0; font-size: 14px; color: var(--muted); line-height: 1.5; }
+.verify__subtitle { margin: 0; font-size: 15px; }
+
+.verify__findings { display: grid; gap: var(--s2); margin: 0; padding-left: var(--s4); }
+.verify__finding { font-size: 14px; line-height: 1.5; }
+
+/* The caveat is the one line that must be legible at a glance and never look like fine print, so it
+   is separated by a rule rather than shrunk into a footnote. */
+.verify__caveat {
+  margin: 0;
+  padding-top: var(--s3);
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ why the move was bad */
+
+.study__verdict-line { margin: 0; }
+
+/*
+ * The reason, set apart from the number without shouting.
+ *
+ * It is the sentence a player actually acts on, so it is not smaller than the verdict above it —
+ * but it is not louder either: it is one true observation, not a headline.
+ */
+.study__why {
+  margin: 0;
+  padding-left: var(--s3);
+  border-left: 2px solid var(--line);
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ try it yourself */
+
+/*
+ * Under the verdict, not beside it.
+ *
+ * The order on the screen is the order of the thought: what happened, why, now you try. Putting the
+ * invitation next to the verdict would offer it before the reader has finished reading why.
+ */
+.study__try {
+  display: grid;
+  gap: var(--s2);
+  justify-items: start;
+}
+
+.study__try-result {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+/* ------------------------------------------------------------------ /t/<id> */
+
+.tourney { display: grid; gap: var(--s4); }
+.tourney__title { margin: 0; }
+.tourney__state { margin: 0; color: var(--muted); }
+.tourney__heading { margin: 0; font-size: 17px; }
+.tourney__round { margin: 0; font-size: 14px; color: var(--muted); }
+.tourney__note { margin: 0; line-height: 1.55; }
+
+/* The verdict is the point of the page, so it is the one thing set apart. */
+.tourney__verdict {
+  margin: 0;
+  padding: var(--s3);
+  border-radius: var(--r-control);
+  border-left: 3px solid var(--good);
+  background: var(--subtle);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.tourney__verdict--bad { border-left-color: var(--bad); color: var(--bad); }
+
+.tourney__standings { display: grid; gap: var(--s2); margin: 0; padding: 0; list-style: none; }
+
+.tourney__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-control);
+}
+
+.tourney__place { min-width: 1.5em; font-weight: 600; color: var(--muted); }
+.tourney__who { flex: 1; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; }
+.tourney__score { font-weight: 600; }
+.tourney__prize { color: var(--good); font-size: 13px; }
+
+.tourney__games { display: grid; gap: var(--s1); margin: 0; padding: 0; list-style: none; }
+
+/*
+ * Your own outstanding games, above the standings.
+ *
+ * The only actionable thing on a page that is otherwise a public read-only table, so it gets the
+ * same row shape as a board line and a control on the right rather than a style of its own.
+ */
+.tourney__todo { display: grid; gap: var(--s1); margin: 0; padding: 0; list-style: none; }
+
+.tourney__todo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding: var(--s2);
+  border-radius: var(--r-control);
+  background: var(--subtle);
+}
+
+.tourney__todo-note { color: var(--muted); font-size: 14px; }
+
+.tourney__dropped { margin: 0; color: var(--muted); font-size: 14px; }
+
+.tourney__game {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s2);
+  font-size: 13px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+.tourney__side { flex: 1; color: var(--muted); }
+.tourney__outcome { min-width: 3.5em; text-align: center; }
+
+/* The limit of what the page proves, next to the result rather than under it. */
+.tourney__caveat {
+  margin: 0;
+  padding-top: var(--s3);
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--muted);
 }

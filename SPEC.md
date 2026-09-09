@@ -393,12 +393,19 @@ chess/1 scoresheet
 <white address>             NQ…, no spaces
 <black address>             NQ…, no spaces
 <result>                    1-0 | 0-1 | 1/2-1/2
-<termination>               checkmate | resignation | timeout | stalemate | agreement | insufficient
+<termination>               checkmate | resignation | timeout | stalemate | agreement |
+                            insufficient | repetition | fifty-move | abandoned
 <moveCount>                 integer
 <finalFen>                  the position the game ended in
 <endedAtBlock>              Nimiq block height, stamped by the server
 <movesHash>                 SHA-256 of the SAN move list, base64url
+<rated>                     rated | casual
 ```
+
+*(Corrected 8 September 2026. This block previously listed six of the nine terminations and omitted
+the twelfth line entirely. `packages/core/src/scoresheet.ts` is the authority — it always was — and
+the protocol specification in `research/13-protocol/RECORDS.md` is generated from the code rather
+than from this block, which is how the drift was caught.)*
 
 Notes that matter:
 
@@ -611,7 +618,7 @@ whole spec.
 
 | | Why |
 |---|---|
-| Engine analysis, accuracy %, ACPL, "learn from your mistakes" in full | All need an engine, and every strong one is GPL (`LICENCES.md` §6). The tactical subset — a move that hangs material is detectable from the position alone — stays **LATER** |
+| ~~Engine analysis, accuracy %, "learn from your mistakes"~~ | **Built.** This row read *"all need an engine, and every strong one is GPL"* and drew the wrong conclusion from a true premise: the answer was not to do without an engine but to **write one** (K1). It exists, it is ours, it is MIT, and Game Review is on the study screen. What is still out is ACPL as a headline number — accuracy in win-percentage terms is more honest and is what is shown |
 | Opening explorer over their six billion games | The dataset is the product, it cannot be reproduced, and their API returned 401 |
 | Teams, forums, blogs, messaging, streamers, following | A social network needs a population |
 | Broadcasts, simuls, tournaments | All need a crowd that will not exist by 18 September |
@@ -971,7 +978,7 @@ Said plainly, because a gap a judge finds unspoken is a miss and the same gap na
 |---|---|
 | **Correspondence chess** | There are **no push notifications on this platform.** Nothing can tell a player it is their turn, so days-long games become a graveyard of abandonments. A platform limit, not a time limit |
 | **The opening explorer over six billion games** | The dataset *is* the product and cannot be reproduced. `lichess-org/lila-openingexplorer` is AGPL-3.0 and their public API returned **401** on 6 Sep. A personal explorer over our own games is free and is a different thing |
-| **Stockfish-strength analysis** | Ours will be around 2000, not 3600. That is enough to review an amateur game and not enough to correct a grandmaster. **Say the number** rather than implying parity |
+| **Stockfish-strength analysis** | Not 3600, and now **measured rather than guessed** — `node scripts/strength.mjs` runs the engine over the bundled Lichess puzzles, which carry real ratings. It finds the key move in **91%** and holds the **whole line in 86%**, weakest at 2400+ where it still holds 68%. That is enough to review an amateur game and not enough to correct a grandmaster. **The bias is stated with the number**: the bundled set keeps only puzzles of four player moves or fewer, so it is short forcing tactics — what a four-ply search with quiescence is unusually good at — and the script deliberately refuses to print a playing rating from it |
 | **Escrowed wagers** | Nimiq has HTLCs; the Mini App provider has no extended-transaction method to create one, so any stake is necessarily custodial (`BRIEF.md`) |
 | **Lichess TV as an automatic channel, broadcasts, simuls** | All need traffic. Spectating one game by link (J7) gets the useful half without it |
 
@@ -1508,34 +1515,51 @@ gives us**, and **what in this spec is still undecided, unchecked or unplanned.*
 
 ## P1. The Nimiq surface, method by method
 
-Every method in `../NIMIQ_DEV_DOCS_FULL_REFERENCE.md` §3, against what this spec actually does with
-it. Three were missing; they are added below.
+Every method in `../NIMIQ_DEV_DOCS_FULL_REFERENCE.md` §3, against what this project actually does
+with it.
 
-| Method | Used | Where |
-|---|---|---|
-| `listAccounts()` | **yes** | Identity. On a tap, never on load |
-| `sign(message)` | **yes** | The scoresheet, and therefore the rating. **The reason the product exists** (F) |
-| `getBlockNumber()` | **yes** | `endedAtBlock` — the canonical ordering key for the Elo chain (F2) |
-| `sendBasicTransactionWithData()` | **yes** | Pool payouts and coaching payments — **and see P2 below, the memo was not being used** |
-| `sendBasicTransaction()` | no, deliberately | We always want the memo. The plain form has no use here |
-| `sendNewStakerTransaction()` | **yes** | Creating the pool's stake (K7) |
-| `sendStakeTransaction()` | **yes** | Topping the pool up |
-| `sendSetActiveStakeTransaction()` | **yes** | Adjusting how much of the pool is earning |
-| `sendUpdateStakerTransaction()` | **yes** | Changing validator if one underperforms or goes offline |
-| `sendRetireStakeTransaction()` | **yes** | Winding the pool down honestly, in public |
-| `sendRemoveStakeTransaction()` | **yes** | Withdrawing principal — which the rules say we do not do while the pool is running |
-| `requestDeviceIdentifier()` | **yes** | One payout per device per day, without a login |
-| `getHostLanguage()` | **yes** | Five languages, at the host's own preference |
-| `isConsensusEstablished()` | **NOW ADDED** | Checked before any payout and before rating a game. Bounded, never blocking — a wallet still catching up must not silently fail a payout |
-| `window.nimiqPay.userFiat` | **NOW ADDED** | Every payout, every coaching price and every pool figure shown in **the user's own currency**, not in NIM alone. chit does this and it is the difference between "0.0007 NIM" and "about 4¢" |
-| **Ethereum provider (EVM, USDT, 5 chains)** | no, deliberately | The organiser's own words are *"make the coins exactly NIM."* An EVM path would add a second rail, a gas problem a new wallet cannot solve, and nothing the product needs |
-| `@nimiq/identicons` | **yes** | Bot faces (J2) and opponent faces. Nimiq Space's `identiconTexture.ts` is the pattern |
-| `@nimiq/utils` historic rates | **NOW ADDED** | What a payout was worth **when it landed**, on the certificate and in the pool's public ledger. Same reason chit does it: that is the figure a tax office keys on |
-| Public RPC from the browser | **NOW ADDED** | The recompute page (F5) reads block heights straight from a public node, so the ordering of the Elo chain is verifiable **without our server**. This makes the "survives us" claim complete rather than partial |
+**This table was written as a plan and read as a claim**, which is a bad thing for a table in a
+repository a judge opens. It said "yes" against four staking methods that no code calls and "NOW
+ADDED" against three capabilities that were declared and never wired, and closed by counting
+thirteen of fifteen. The **Built** column below was filled in by grepping the tree, method by
+method, and the count at the bottom is the real one.
 
-**Thirteen of the fifteen provider methods, plus both libraries and the public RPC.** No app in the
-75-app catalog uses the staking half at all. If the Nimiq-integration criterion asks whether the
-chain is *a core part of the experience*, this is as complete an answer as the platform allows.
+| Method | Planned | Built | Where |
+|---|---|---|---|
+| `listAccounts()` | yes | **yes** | Identity, on a tap and never on load. `apps/web/src/wallet.ts` |
+| `sign(message)` | yes | **yes** | The scoresheet, and therefore the rating. **The reason the product exists** (F). `sign-game.ts` |
+| `getBlockNumber()` | yes | **yes** | `endedAtBlock` — the canonical ordering key for the Elo chain (F2). `wallet.ts` |
+| `isConsensusEstablished()` | yes | **yes** | Asked before signing, so a wallet still syncing is a sentence rather than a two-minute timeout. `wallet.ts`, `sign-game.ts` |
+| `requestDeviceIdentifier()` | yes | **yes** | One payout per device per day, without a login. `wallet.ts`, `puzzle-screen.ts` |
+| `sendBasicTransactionWithData()` | yes | **yes, both ways** | The pool's payouts are built server-side with `@nimiq/core` from the pool's own key. **And a player sends their own**: a tip to the opponent after a live game, and a top-up into the puzzle pool, both through the provider from the player's wallet, memo carrying the game or the day. `send-nim.ts` |
+| `sendBasicTransaction()` | no, deliberately | — | We always want the memo. The plain form has no use here |
+| `sendNewStakerTransaction()` | yes | **as a protocol call** | `TransactionBuilder.newCreateStaker` in `packages/server/src/staking.ts`, from the pool's operator wallet rather than a player's |
+| `sendStakeTransaction()` | yes | **as a protocol call** | `TransactionBuilder.newAddStake`, same file |
+| `sendSetActiveStakeTransaction()` | yes | **no** | Adjusting how much of the pool earns. Not needed until the pool is funded and running |
+| `sendUpdateStakerTransaction()` | yes | **no** | Changing validator. Same |
+| `sendRetireStakeTransaction()` | yes | **no** | Winding the pool down. Same |
+| `sendRemoveStakeTransaction()` | yes | **no** | Withdrawing principal — which the rules say we do not do while the pool runs, so this one may never be built at all |
+| `window.nimiqPay.language` | yes | **yes** | The whole app, in the five languages the host supports. `i18n.ts`, `strings/` |
+| ~~`window.nimiqPay.userFiat`~~ | yes | **does not exist** | Checked against `@nimiq/mini-app-sdk`'s own `NimiqPayHostContext`, which declares exactly `language` and `requestDeviceIdentifier`. It was in our type and faked by our stand-in wallet, and it was never real. Removed |
+| **Ethereum provider (EVM, USDT, 5 chains)** | no, deliberately | — | The organiser's own words are *"make the coins exactly NIM."* An EVM path would add a second rail, a gas problem a new wallet cannot solve, and nothing the product needs |
+| `@nimiq/identicons` | yes | **yes** | A face beside every address the app shows — the record, the opponent in a live game, and each bot (J2). Lazy-loaded, and the *bundled* build, because the package's `browser` entry fetches its sprite over the network. `identicon.ts` |
+| `@nimiq/utils` historic rates | yes | **no, and deliberately** | What a payout is worth in money. Measured on 2026-09-07: **NIM is $0.00034**, so the 0.5 NIM daily reward is **$0.00017** and a 25 NIM tip is under a cent. Every figure in the app would render as `$0.00`, which would make a real on-chain payment look like nothing. The dependency was installed to check that and then removed |
+| Public RPC from the browser | yes | **no** | The recompute page verifies *signatures* without our server, which is the load-bearing half; it does not currently read block heights from a public node, so the ordering is taken from the signed text rather than re-checked against the chain |
+
+**Honestly counted: eight of the fifteen provider methods are used, two more are used as protocol
+calls from the server's own wallet rather than through the provider, and four staking methods are
+unbuilt.** `@nimiq/identicons` is used; `@nimiq/utils` is not, for the reason in its row.
+
+That is still, as far as the catalog shows, the only Nimiq staking of any kind in a shipped Mini
+App — and `sign()` is load-bearing here in a way it is nowhere else. The overstated version of this
+table did the project no favours: the true claim is strong enough, and a judge who checks one row
+and finds it false stops believing the other nineteen.
+
+**That gap is closed.** It used to read: *every transaction in the app is sent by the pool, never by
+a player*. A player now sends their own, in both directions — a tip straight to the opponent's
+wallet after a game, and a contribution into the puzzle pool. Neither is custodial and neither is a
+wager: the rules ban games of chance outright, and a stake on a result would need an escrow the Mini
+App framework has no method for (K8).
 
 ## P2. The trick that was not being used
 
@@ -1595,7 +1619,7 @@ from our own copy" as though that were free. It is not, and it would have been f
 | **The data model** | Games, moves, puzzle attempts, ratings, scoresheets, pool payouts. One schema, behind chit's storage-interface shape so SQLite and an object store are both implementations rather than rewrites |
 | **Rating recomputation cost** | F5 recomputes the whole Elo chain on every read, which is O(all games this wallet has played) and grows forever. **Checkpoint it**: store the rating after game *n* with the hash of the chain that produced it, recompute only from there, and let the public page recompute the whole thing on demand because that is the point of it |
 | **The certificate's link-preview image** | J1 makes the certificate a picture; a link preview needs that picture at a URL a crawler can fetch, which means a server-rendered image endpoint. A chess result is not private — unlike a chit, where the same feature was declined precisely because it leaks a deal into a group chat |
-| **Rate limiting** | Present in chit, absent here. Per-IP and per-wallet, on challenge creation, puzzle submission and every payout path |
+| ~~**Rate limiting**~~ | **Built** — `packages/server/src/limits.ts`. Token buckets rather than fixed windows, sized so no human playing bullet can reach the move limit, tight on creating games and claiming money, and keyed on the route rather than on anything a caller can claim about itself |
 | **Retention** | There are no accounts, and games are still personal data of a sort. Decide and publish: how long unrated and abandoned games are kept, and what a person can delete. "We keep signed scoresheets forever because they are the rating" is a fine answer — but it has to be *said* |
 | **Hosting cost of the pool's own uptime** | The staked pool must be able to pay out when nobody is watching. Decide whether payouts are on-demand at claim time (like chit's confirm-on-read) or swept by a worker |
 
@@ -1608,6 +1632,36 @@ Only two, and both are measurements rather than decisions:
 - **How strong the bot should be** (I6). Guesswork until somebody who does not play chess tries it.
 
 Everything else in this spec is now decided, checked, or explicitly deferred with a reason.
+
+## P7. What these tables now get wrong, having been built
+
+Parts A–J were written **before** the build, as calls rather than as status, and several of those
+calls have since been overtaken. A reader who meets *"needs an engine, and every strong engine is
+GPL"* and stops there would be reading a plan, not a product. The rows that moved:
+
+| Marked | Now | Where |
+|---|---|---|
+| *Learn from your mistakes* — **LATER**, *"needs an engine"* (A2, H7) | **Built.** Every move judged, an accuracy for each side, the engine's move as an arrow | `apps/web/src/study-screen.ts`, `packages/core/src/analysis.ts` |
+| *Analysis board with Stockfish* — **BLOCKED as shipped** (A2) | **Still true about Stockfish**, and no longer the end of the story: the engine is ours and MIT, so the analysis ships in the bundle | `packages/core/src/search.ts` |
+| *The engine* — **LATER**, after the cycle (K1, and the README's own "what is not done") | **Built.** Its own 0x88 board, 6.1 M nodes/sec, perft-verified to depth five and agreeing with `chess.js` move for move over thousands of random positions | `packages/core/src/position.ts` |
+| *Coordinate trainer* (H5) | **Built**, to Lichess's own definition — both modes, thirty seconds, averages kept per orientation | `apps/web/src/coordinate-screen.ts` |
+| *PGN import* (A2) | **Built.** A game arrives from Lichess, Chess.com or a tournament and opens on the board | `packages/core/src/pgn.ts` |
+| *Rate limiting* — *"absent here"* (P5) | **Built.** Token buckets, by route | `packages/server/src/limits.ts` |
+| *Bot faces* (J2) | **Built**, and everywhere else an address appears too | `apps/web/src/identicon.ts` |
+| *Localisation* — nothing called `hostLanguage()` (P1) | **Built.** Five languages, one chunk each | `apps/web/src/i18n.ts` |
+| *No player-initiated transaction* (P1) | **Built.** A tip to the opponent, and a contribution into the pool | `apps/web/src/send-nim.ts` |
+| *A clock against the bot* — not planned at all | **Built**, because Lichess offers one and this did not | `apps/web/src/clock.ts` |
+
+And two things this audit found that were **wrong rather than merely unbuilt**, both of which would
+have failed silently on a real phone:
+
+- **`requestDeviceIdentifier` was called with a bare string.** The documented signature is
+  `({ reason })`, and an empty reason *throws* — so the entire puzzle-pool payout was unclaimable
+  inside real Nimiq Pay, while every test passed because our stand-in wallet had copied the same
+  wrong shape.
+- **`window.nimiqPay.userFiat` does not exist.** It was declared in our host type and faked by the
+  stand-in wallet. `@nimiq/mini-app-sdk`'s own `NimiqPayHostContext` has exactly `language` and
+  `requestDeviceIdentifier`. Removed rather than built against.
 
 ---
 

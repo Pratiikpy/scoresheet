@@ -1,3 +1,4 @@
+/// <reference types="@nimiq/mini-app-sdk" />
 /**
  * The Nimiq Pay wallet, as this app uses it.
  *
@@ -11,7 +12,9 @@
  *    rejecting. The documentation describes only the throw. Both happen.
  *  - `sign()`'s return framing varies by host, so it goes through `normaliseSignature`.
  *  - **There is no `getBalance`.** Confirmed absent, not merely undocumented.
- *  - `window.nimiqPay` carries `language`, `userFiat` and `requestDeviceIdentifier()`.
+ *  - `window.nimiqPay` carries **exactly two things**: `language` and `requestDeviceIdentifier()`.
+ *    Checked against `@nimiq/mini-app-sdk`'s own `NimiqPayHostContext`, not assumed — an earlier
+ *    version of this file also declared `userFiat`, which does not exist and never did.
  *
  * The rule that shapes the whole file: **never ask for a wallet on page load.** A stranger opening
  * a link should solve the daily puzzle and beat the bot before anything asks who they are. The
@@ -19,27 +22,27 @@
  */
 
 import { SignatureDeclinedError, SignatureShapeError, normaliseSignature, type NormalisedSignature } from '@scoresheet/core';
+import { t } from './i18n.ts';
 
 /** What the injected provider offers. Every method optional: hosts differ and versions drift. */
-interface NimiqProvider {
-  listAccounts?: () => Promise<unknown>;
-  sign?: (input: string | { message: string; isHex?: boolean }) => Promise<unknown>;
-  getBlockNumber?: () => Promise<number>;
-  isConsensusEstablished?: () => Promise<boolean>;
-}
-
-interface NimiqPayHost {
-  language?: string;
-  userFiat?: string;
-  requestDeviceIdentifier?: (reason?: string) => Promise<string>;
-}
-
-declare global {
-  interface Window {
-    nimiq?: NimiqProvider;
-    nimiqPay?: NimiqPayHost;
-  }
-}
+/**
+ * ⭐ `window.nimiq` and `window.nimiqPay` are typed by **Nimiq**, not by us.
+ *
+ * This file used to declare both itself, from a careful reading of `@nimiq/mini-app-sdk`. The
+ * readings were right, and being right was a fact about one afternoon: nothing re-checked them, and
+ * there is no way to run against the real host from a build machine, so a drift would have been
+ * discovered by a judge's phone rather than by a compiler.
+ *
+ * That is not hypothetical here. `requestDeviceIdentifier` was hand-written as `(reason?: string)`
+ * and called with a bare string. The real host takes an options object, so it would have read
+ * `options.reason` as empty and **rejected** — and an empty reason is documented to throw. Our own
+ * stand-in wallet copied the same wrong shape, so every test passed while the puzzle pool was
+ * unclaimable on an actual phone.
+ *
+ * Importing the SDK's types brings its own `declare global` with them, so the globals now carry the
+ * vendor's signatures and a future change to them is a build error. `import type` is erased at
+ * build: the SDK stays a devDependency and nothing extra ships.
+ */
 
 /** How much of a wallet is present. The app renders differently for each, never worse. */
 export type WalletTier =
@@ -55,7 +58,7 @@ export class WalletUnavailableError extends Error {
 export class WalletTimeoutError extends Error {
   override readonly name = 'WalletTimeoutError';
   constructor(step: string) {
-    super(`${step} — Nimiq Pay did not answer. Open the wallet and try again.`);
+    super(t('fail.timeout', { step }));
   }
 }
 
@@ -67,12 +70,6 @@ export function tier(): WalletTier {
   return typeof window !== 'undefined' && window.nimiq !== undefined ? 'nimiq-pay' : 'none';
 }
 
-/** The host's language, for copy. Falls back the way the documentation recommends. */
-export function hostLanguage(): string {
-  const raw = window.nimiqPay?.language ?? navigator.language ?? 'en';
-  return raw.slice(0, 2).toLowerCase();
-}
-
 /**
  * Nothing may hang forever.
  *
@@ -80,6 +77,10 @@ export function hostLanguage(): string {
  * a screen stuck on "waiting" with no way out is worse than an error. Every call is bounded, and the
  * timeout names the step so the message can say what was waiting.
  */
+export function withWalletTimeout<T>(promise: Promise<T>, ms: number, step: string): Promise<T> {
+  return withTimeout(promise, ms, step);
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number, step: string): Promise<T> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new WalletTimeoutError(step)), ms);
@@ -146,14 +147,14 @@ export function forgetAddress(): void {
 export async function connect(): Promise<string> {
   const provider = window.nimiq;
   if (!provider?.listAccounts) {
-    throw new WalletUnavailableError('Signing happens in the Nimiq Pay app. Open this there.');
+    throw new WalletUnavailableError(t('fail.noWalletSign'));
   }
 
-  const result = await withTimeout(provider.listAccounts(), 60_000, 'Sharing your address');
+  const result = await withTimeout(provider.listAccounts(), 60_000, t('wallet.sharingAddress'));
   const accounts = unwrap<unknown>(result, 'listAccounts');
   const first = Array.isArray(accounts) ? accounts[0] : undefined;
   if (typeof first !== 'string' || first.length === 0) {
-    throw new WalletUnavailableError('The wallet did not return an address.');
+    throw new WalletUnavailableError(t('fail.noAddress'));
   }
 
   try {
@@ -173,16 +174,41 @@ export async function connect(): Promise<string> {
 export async function signText(text: string): Promise<NormalisedSignature> {
   const provider = window.nimiq;
   if (!provider?.sign) {
-    throw new WalletUnavailableError('Signing happens in the Nimiq Pay app. Open this there.');
+    throw new WalletUnavailableError(t('fail.noWalletSign'));
   }
-  const result = await withTimeout(provider.sign(text), 120_000, 'Signing');
+  const result = await withTimeout(provider.sign(text), 120_000, t('wallet.signing'));
   return normaliseSignature(result);
+}
+
+/**
+ * Is Nimiq Pay caught up with the chain?
+ *
+ * **Asked before signing, not diagnosed afterwards.** Without this, somebody who signs while the
+ * wallet is still syncing waits through a two-minute timeout and then gets a message inferred by
+ * matching words in whatever error text came back — a guess about a failure that could have been
+ * predicted for free. The provider has been able to answer this all along; it was declared in the
+ * interface and never called.
+ *
+ * `null` means the question could not be asked, which is different from "no" and is treated as
+ * "carry on": refusing to sign because a capability check failed would be worse than the problem.
+ */
+export async function consensusEstablished(): Promise<boolean | null> {
+  try {
+    const answer = await withTimeout(
+      window.nimiq?.isConsensusEstablished?.() ?? Promise.resolve(undefined),
+      5_000,
+      t('wallet.checkingSync'),
+    );
+    return typeof answer === 'boolean' ? answer : null;
+  } catch {
+    return null;
+  }
 }
 
 /** The chain height, for stamping a finished game. Never blocking, never fatal. */
 export async function blockNumber(): Promise<number | null> {
   try {
-    const height = await withTimeout(window.nimiq?.getBlockNumber?.() ?? Promise.resolve(0), 10_000, 'Reading the chain height');
+    const height = await withTimeout(window.nimiq?.getBlockNumber?.() ?? Promise.resolve(0), 10_000, t('wallet.readingHeight'));
     return typeof height === 'number' && height > 0 ? height : null;
   } catch {
     return null;
@@ -198,9 +224,9 @@ export async function blockNumber(): Promise<number | null> {
 export async function deviceIdentifier(reason: string): Promise<string | null> {
   try {
     const id = await withTimeout(
-      window.nimiqPay?.requestDeviceIdentifier?.(reason) ?? Promise.resolve(''),
+      window.nimiqPay?.requestDeviceIdentifier?.({ reason }) ?? Promise.resolve(''),
       60_000,
-      'Identifying this device',
+      t('wallet.identifyingDevice'),
     );
     return typeof id === 'string' && id.length > 0 ? id : null;
   } catch {
@@ -220,30 +246,30 @@ export async function deviceIdentifier(reason: string): Promise<string | null> {
  */
 export function explain(error: unknown): { message: string; tone: 'calm' | 'bad' } {
   if (error instanceof SignatureDeclinedError) {
-    return { message: 'You did not sign. Nothing was recorded, and you can sign any time.', tone: 'calm' };
+    return { message: t('fail.declined'), tone: 'calm' };
   }
   if (error instanceof WalletUnavailableError || error instanceof WalletTimeoutError) {
     return { message: error.message, tone: 'calm' };
   }
   if (error instanceof SignatureShapeError) {
     return {
-      message: 'Your wallet returned a signature this app could not read. Please report it — it is our bug, not yours.',
+      message: t('fail.badSignature'),
       tone: 'bad',
     };
   }
   if (error instanceof Error) {
     if (/reject|denied|declin|cancel|abort/i.test(error.message)) {
-      return { message: 'You did not sign. Nothing was recorded, and you can sign any time.', tone: 'calm' };
+      return { message: t('fail.declined'), tone: 'calm' };
     }
     if (/failed to fetch|network|offline|econn|timed? ?out/i.test(error.message)) {
-      return { message: 'Your phone could not reach the network. Nothing was lost — try again in a moment.', tone: 'calm' };
+      return { message: t('fail.phoneNetwork'), tone: 'calm' };
     }
     if (/consensus|not synced|syncing/i.test(error.message)) {
-      return { message: 'Nimiq Pay is still catching up with the chain. Give it a few seconds.', tone: 'calm' };
+      return { message: t('fail.syncing'), tone: 'calm' };
     }
     // Unrecognised: quote it and say whose words they are, rather than inventing a friendlier
     // meaning. A wrong guess about an error is worse than an honest quotation of one.
     return { message: `Your wallet reported: ${error.message}`, tone: 'bad' };
   }
-  return { message: 'Something went wrong. Nothing was signed.', tone: 'bad' };
+  return { message: t('fail.somethingSigning'), tone: 'bad' };
 }

@@ -11,4 +11,19 @@ coverage/
 shots/
 data/*.csv
 data/*.zst
-shots/
+
+# The evaluation network: 6.3 MB of binary nobody can review by reading it.
+# `npm run build` fetches it and checks its SHA-256 (scripts/vendor-nnue.mjs), so the hash in that
+# script is what is under review rather than the bytes.
+apps/web/public/nnue-*.bin
+
+# The demo film and its frames. `npm run demo` regenerates them from the running product, so the
+# repository carries the script that makes the video rather than the video itself.
+demo/
+
+# Internal working documents. The public repository carries the product, its tests and its spec —
+# not the competition strategy, the rubric-by-rubric pitch prep, or the notes on how judging works.
+PITCH_ANSWERS.md
+PLAN.md
+research/11-testing/judge-mode.md
+research/12-benchmark/gap-analysis.md

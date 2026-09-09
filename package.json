@@ -4,12 +4,39 @@
   "version": "0.1.0",
   "license": "MIT",
   "type": "module",
-  "workspaces": ["packages/*", "apps/*"],
-  "engines": { "node": ">=20" },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
+    "dev": "npm run dev -w @scoresheet/web",
+    "server": "node --experimental-strip-types packages/server/src/node.ts",
+    "build": "npm run build -w @scoresheet/web",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "build": "npm run build -w @scoresheet/web"
+    "counts": "node scripts/counts.mjs",
+    "design": "node scripts/design-metrics.mjs",
+    "look": "node --experimental-strip-types scripts/look.mjs",
+    "check": "npm run typecheck && npm run counts && npm run licences && npm run provider && npm run design && npm run explain && npm run review && npm run tournament && npm run swiss && npm run look",
+    "share-image": "node scripts/make-share-image.mjs",
+    "vendor:pieces": "node scripts/vendor-pieces.mjs",
+    "vendor:openings": "node scripts/vendor-openings.mjs",
+    "vendor:puzzles": "node scripts/vendor-puzzles.mjs",
+    "licences": "node scripts/licences.mjs",
+    "vendor:nnue": "node scripts/vendor-nnue.mjs",
+    "explain": "node --experimental-strip-types scripts/explain-sanity.mjs 12000",
+    "tournament": "node --experimental-strip-types scripts/tournament-check.mjs",
+    "swiss": "node --experimental-strip-types scripts/swiss-check.mjs 200",
+    "levels": "node --experimental-strip-types scripts/levels-ordered.mjs 10",
+    "icons": "node scripts/make-icons.mjs",
+    "review": "node --experimental-strip-types scripts/review-quality.mjs 40 100",
+    "fairplay": "node --experimental-strip-types scripts/fairplay-calibrate.mjs 3 6",
+    "judge": "node scripts/judge-mode.mjs",
+    "demo": "node --experimental-strip-types scripts/demo-video.mjs",
+    "provider": "node scripts/provider-conformance.mjs"
   },
   "description": "A chess rating nobody can take away from you. Both players sign the result."
 }

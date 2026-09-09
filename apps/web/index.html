@@ -3,9 +3,72 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
     <title>Scoresheet — chess</title>
-    <meta name="description" content="A chess rating nobody can take away from you. Both players sign the result." />
+    <meta
+      name="description"
+      content="A chess rating nobody can take away from you. Both players sign the result, and anyone can check it."
+    />
+
+    <!--
+      The link preview, and it is not decoration.
+
+      The share link is the whole distribution strategy (SPEC.md step 5): a game handed over as a URL
+      is a game somebody plays without installing anything. A link pasted into a chat with no preview
+      is a grey rectangle nobody taps — so the one artefact the growth loop depends on had, until
+      this was added, no image, no title and no summary anywhere it was actually sent.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Scoresheet" />
+    <meta property="og:title" content="Scoresheet — chess" />
+    <meta
+      property="og:description"
+      content="Play a game. Both of you sign the result. The rating that comes out is yours, and nobody — including us — can take it away."
+    />
+    <meta property="og:image" content="/share.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Scoresheet — chess" />
+    <meta
+      name="twitter:description"
+      content="Play a game. Both of you sign the result. The rating that comes out is yours, and nobody — including us — can take it away."
+    />
+    <meta name="twitter:image" content="/share.png" />
+
+    <!--
+      Both themes are declared, and `theme-color` is given per scheme.
+
+      Without it the browser chrome around the app stays white in dark mode — a bright bar above a
+      dark board, which is the single most obvious way an app looks like it was never opened on a
+      phone by the person who built it.
+    -->
     <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f6f4ef" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14140f" media="(prefers-color-scheme: dark)" />
+
+    <!--
+      An inline SVG favicon: a knight, in the board's own brown, on nothing.
+
+      A data URI rather than a file, so there is no extra request and no chance of a 404 in the one
+      place a missing asset is visible on every single page. `currentColor` is not used because a
+      favicon has no inherited colour.
+    -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%239a7248'/%3E%3Cpath fill='%23f6f4ef' d='M11.6 6.2c.5 1 .6 2 .4 3l3.2-1.4c2.9-1 6 .7 6.9 3.6.2.6.3 1.3.3 2v9.9c0 .7-.6 1.3-1.3 1.3H9.3a1 1 0 0 1-.7-1.7l4.5-4.7-1.5.6a3 3 0 0 1-3.8-1.6l-1-2.3a1 1 0 0 1 .3-1.2l2.7-2-1.6-.5a1 1 0 0 1-.5-1.6l3.9-3.4Z'/%3E%3C/svg%3E"
+    />
+    <!--
+      A square icon, because a home-screen icon is square.
+
+      This pointed at `/share.png` — the 1200×630 landscape card built for link previews — which
+      renders on a home screen as a squashed banner rather than an icon. A home screen is exactly
+      where a Mini App ends up when somebody likes it enough to keep it, so it is the one place the
+      wrong asset is guaranteed to be seen. `scripts/make-icons.mjs` draws these from the same knight
+      as the favicon above, so the tab and the home screen are the same mark.
+    -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
   </head>
   <body>
     <main id="app"></main>
