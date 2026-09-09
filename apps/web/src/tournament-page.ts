@@ -27,6 +27,7 @@ import {
 } from '@scoresheet/core';
 import { createIdenticon } from './identicon.ts';
 import { t } from './i18n.ts';
+import { apiBase } from './online.ts';
 import { verifyScoresheetInBrowser } from './verify-browser.ts';
 import { allGames } from './store.ts';
 import { connect, rememberedAddress, tier } from './wallet.ts';
@@ -87,7 +88,7 @@ export function createTournamentPage(id: string, onBack: () => void): HTMLElemen
   async function load(): Promise<void> {
     let payload: TournamentPayload;
     try {
-      const response = await fetch(`/api/tournaments/${encodeURIComponent(id)}`);
+      const response = await fetch(`${apiBase()}/api/tournaments/${encodeURIComponent(id)}`);
       if (!response.ok) {
         paintProblem(response.status === 404 ? t('tourney.notFound') : t('tourney.unavailable'));
         return;
@@ -181,7 +182,7 @@ export function createTournamentPage(id: string, onBack: () => void): HTMLElemen
         void (async () => {
           try {
             const address = me ?? (await connect());
-            const response = await fetch(`/api/tournaments/${encodeURIComponent(id)}/join`, {
+            const response = await fetch(`${apiBase()}/api/tournaments/${encodeURIComponent(id)}/join`, {
               method: 'POST',
               headers: { 'content-type': 'application/json' },
               body: JSON.stringify({ address }),
@@ -422,7 +423,7 @@ export function createTournamentPage(id: string, onBack: () => void): HTMLElemen
               send.disabled = true;
               void (async () => {
                 try {
-                  const response = await fetch(`/api/tournaments/${encodeURIComponent(id)}/result`, {
+                  const response = await fetch(`${apiBase()}/api/tournaments/${encodeURIComponent(id)}/result`, {
                     method: 'POST',
                     headers: { 'content-type': 'application/json' },
                     body: JSON.stringify({

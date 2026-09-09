@@ -16,7 +16,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 
 const run = spawnSync('npm', ['test'], {
   encoding: 'utf8',
@@ -114,6 +114,33 @@ try {
 } catch {
   problems += 1;
   console.log(`  FAIL  ${SHARE_IMAGE} is missing — every shared link would show a broken image`);
+}
+
+/*
+ * Every API call has to go through `apiBase()`, or a split deployment breaks in one place only.
+ *
+ * The app is built to run with its API on another origin — `VITE_API` exists for exactly that, and
+ * Azure hosts the static build and the server as two services. A `fetch('/api/...')` written without
+ * `apiBase()` still works perfectly in dev, where Vite proxies `/api` to the server, and still works
+ * in `npm run look`, which uses that same proxy. It fails only in production, and only for the one
+ * feature that has it — which is how four tournament calls came within a deploy of being the single
+ * broken screen in an otherwise working app.
+ */
+console.log('\nthe API base');
+const bare = [];
+for (const name of readdirSync('apps/web/src').filter((file) => file.endsWith('.ts'))) {
+  const text = readFileSync(`apps/web/src/${name}`, 'utf8');
+  for (const match of text.matchAll(/fetch\(\s*[`'"]\/api\//g)) {
+    void match;
+    bare.push(name);
+  }
+}
+if (bare.length === 0) {
+  console.log('  PASS  every API call goes through apiBase(), so a split-origin deploy works');
+} else {
+  problems += 1;
+  console.log(`  FAIL  ${bare.length} fetch call(s) hardcode /api and would break in production:`);
+  for (const name of [...new Set(bare)]) console.log(`        apps/web/src/${name}`);
 }
 
 const ran =

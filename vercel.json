@@ -4,7 +4,7 @@
   "outputDirectory": "apps/web/dist",
   "installCommand": "npm install",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://SCORESHEET-API-HOST/api/:path*" },
+    { "source": "/api/:path*", "destination": "https://scoresheet-api.azurewebsites.net/api/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [

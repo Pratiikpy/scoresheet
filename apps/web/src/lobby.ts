@@ -10,7 +10,7 @@
  * nothing here asks a question that could have had an answer.
  */
 
-import { createGame } from './online.ts';
+import { apiBase, createGame } from './online.ts';
 import { explainFailure } from './failures.ts';
 import { connect, rememberedAddress, tier } from './wallet.ts';
 import { haptic } from './sound.ts';
@@ -259,7 +259,7 @@ export function createLobby(options: LobbyOptions): HTMLElement {
         return;
       }
       try {
-        const response = await fetch('/api/tournaments', {
+        const response = await fetch(`${apiBase()}/api/tournaments`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ address, name: t('lobby.tourneyName'), seats, prizes: [] }),
