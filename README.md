@@ -1,5 +1,10 @@
 # Scoresheet
 
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/unit%20tests-723-brightgreen.svg)](#checking-it-yourself)
+[![Browser checks](https://img.shields.io/badge/browser%20checks-581-brightgreen.svg)](#checking-it-yourself)
+[![Built for](https://img.shields.io/badge/built%20for-Nimiq%20Mini%20Apps-yellow.svg)](https://nimiq.com/nimiq-pay)
+
 **A chess rating nobody can take away from you.**
 
 Play a game. Both players sign the result with their Nimiq wallet. The rating that comes out is
@@ -10,6 +15,23 @@ That last sentence is the entire product, and the app is built so you can check 
 believe it. Every record page has a **Recompute** button: it re-derives the whole rating chain
 locally, verifying every signature, and prints the number it reached beside the number we showed. If
 they ever disagree, ours is wrong, and the page says so.
+
+---
+
+## What it looks like
+
+| | |
+|---|---|
+| ![The board](docs/screens/board.png) | ![Game review](docs/screens/review.png) |
+| **The board.** Ours, not a library: drag and tap-tap, premoves, promotion in place, playable end to end from a keyboard with every square announced. | **Game review.** Every move judged, an accuracy for each side, and one plain sentence saying *why* a move was bad — then the position handed back so you can find the better move yourself. |
+| ![Your record](docs/screens/record.png) | ![Verifying a record](docs/screens/verify.png) |
+| **The record.** Every game in canonical order, and a **Recompute** button that re-derives the rating from the signatures in your own browser. If it ever disagreed with us, the page would say so. | **`/verify`.** Drop in a record file and every signature is checked, both Merkle roots recomputed and the rating re-derived — with no request to our server at all. |
+
+![A tournament](docs/screens/tournament.png)
+
+**Tournaments.** Round-robin to eight, Swiss above it, no drawing of lots anywhere. A result is not a
+score somebody reports — it is the signed game itself, and this page verifies every one of them in
+the reader's browser before it builds the table.
 
 ---
 
