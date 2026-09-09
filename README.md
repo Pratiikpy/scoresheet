@@ -20,18 +20,29 @@ they ever disagree, ours is wrong, and the page says so.
 
 ## What it looks like
 
-| | |
-|---|---|
-| ![The board](docs/screens/board.png) | ![Game review](docs/screens/review.png) |
-| **The board.** Ours, not a library: drag and tap-tap, premoves, promotion in place, playable end to end from a keyboard with every square announced. | **Game review.** Every move judged, an accuracy for each side, and one plain sentence saying *why* a move was bad — then the position handed back so you can find the better move yourself. |
-| ![Your record](docs/screens/record.png) | ![Verifying a record](docs/screens/verify.png) |
-| **The record.** Every game in canonical order, and a **Recompute** button that re-derives the rating from the signatures in your own browser. If it ever disagreed with us, the page would say so. | **`/verify`.** Drop in a record file and every signature is checked, both Merkle roots recomputed and the rating re-derived — with no request to our server at all. |
+<p align="center">
+  <img src="docs/screens/board.png" width="195" alt="The board: a game against one of the four bots" />
+  <img src="docs/screens/review.png" width="195" alt="Game review, with an accuracy for each side" />
+  <img src="docs/screens/record.png" width="195" alt="A record, with the Recompute button" />
+  <img src="docs/screens/tournament.png" width="195" alt="A tournament, with standings and pairings" />
+</p>
 
-![A tournament](docs/screens/tournament.png)
+**The board** is ours, not a library: drag *and* tap-tap, premoves, promotion in place, and playable
+end to end from a keyboard with every square announced. **Review** judges every move, scores an
+accuracy for each side, and says in one plain sentence *why* a move was bad — then hands the position
+back so you can find the better move yourself. **The record** carries every game in canonical order
+behind a **Recompute** button that re-derives the rating from the signatures in your own browser.
+**Tournaments** pair and score themselves by rules a stranger can recompute, with no drawing of lots
+anywhere — and a result is not a score somebody reports, it is the signed game itself.
 
-**Tournaments.** Round-robin to eight, Swiss above it, no drawing of lots anywhere. A result is not a
-score somebody reports — it is the signed game itself, and this page verifies every one of them in
-the reader's browser before it builds the table.
+<p align="center">
+  <img src="docs/screens/verify.png" width="260" alt="The verify page, checking a record file" />
+</p>
+
+`/verify` is the page the whole argument rests on. Drop in a record file and every signature is
+checked, both Merkle roots recomputed and the rating re-derived — **with no request to our server at
+all.** The browser test drives that path with every call to us aborted, so "you do not need us" is
+measured rather than claimed.
 
 ---
 
